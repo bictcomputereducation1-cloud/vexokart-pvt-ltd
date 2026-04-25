@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
-import { User, Mail, Shield, Calendar, LogOut, ChevronRight, MapPin, Bell, CreditCard, HelpCircle } from 'lucide-react';
+import { User, Mail, Shield, Calendar, LogOut, ChevronRight, MapPin, Bell, CreditCard, HelpCircle, LayoutDashboard } from 'lucide-react';
 import { motion } from 'motion/react';
+import { AddressSelector } from '../components/AddressSelector';
+import { Link } from 'react-router-dom';
 
 export default function Profile() {
-  const { profile, user, signOut } = useAuth();
+  const { profile, user, signOut, isAdmin } = useAuth();
+  const [showAddresses, setShowAddresses] = useState(false);
 
   if (!user) return (
     <div className="py-32 flex flex-col items-center justify-center space-y-6 text-center px-4">
@@ -22,7 +25,6 @@ export default function Profile() {
   );
 
   const menuItems = [
-    { icon: MapPin, label: 'My Addresses', sub: 'Home, Office, Other' },
     { icon: CreditCard, label: 'Payments', sub: 'Saved Cards, UPI' },
     { icon: Bell, label: 'Notifications', sub: 'Offers, Order Updates' },
     { icon: HelpCircle, label: 'Help & Support', sub: 'FAQs, Contact' },
@@ -51,26 +53,52 @@ export default function Profile() {
       </div>
 
       <div className="max-w-xl mx-auto px-4 space-y-6">
-        {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-4">
-           <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm text-center space-y-1">
-              <span className="text-lg font-black italic tracking-tighter block leading-none">12</span>
-              <span className="text-[10px] font-black uppercase text-slate-400">Orders</span>
-           </div>
-           <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm text-center space-y-1">
-              <span className="text-lg font-black italic tracking-tighter block leading-none text-emerald-600">₹450</span>
-              <span className="text-[10px] font-black uppercase text-slate-400">Saved</span>
-           </div>
-           <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm text-center space-y-1">
-              <span className="text-lg font-black italic tracking-tighter block leading-none text-primary">Gold</span>
-              <span className="text-[10px] font-black uppercase text-slate-400">Status</span>
-           </div>
+        {isAdmin && (
+          <Link to="/admin">
+            <div className="bg-slate-900 text-white p-6 rounded-[2rem] shadow-xl flex items-center justify-between group active:scale-[0.98] transition-all">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 bg-white/10 rounded-2xl flex items-center justify-center">
+                  <LayoutDashboard className="h-6 w-6 text-primary" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-black uppercase tracking-widest italic">Admin Console</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Manage Orders & Products</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-primary group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+        )}
+
+        {/* Addresses Section */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+          <button 
+            onClick={() => setShowAddresses(!showAddresses)}
+            className="w-full px-6 py-5 flex items-center justify-between hover:bg-slate-50 transition-colors"
+          >
+            <div className="flex items-center gap-4">
+              <div className="bg-slate-50 p-3 rounded-2xl">
+                <MapPin className="h-5 w-5 text-slate-500" />
+              </div>
+              <div className="text-left">
+                <p className="text-sm font-bold text-slate-800">My Addresses</p>
+                <p className="text-[10px] font-bold text-slate-400 tracking-tight">Manage delivery locations</p>
+              </div>
+            </div>
+            <ChevronRight className={`h-5 w-5 text-slate-300 transition-transform ${showAddresses ? 'rotate-90' : ''}`} />
+          </button>
+          
+          {showAddresses && (
+            <div className="px-6 pb-6 animate-in slide-in-from-top duration-300">
+              <AddressSelector onSelect={() => {}} />
+            </div>
+          )}
         </div>
 
         {/* Account Details */}
         <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
            <div className="px-5 py-4 border-b border-slate-50">
-              <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Account Settings</h2>
+              <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Account Information</h2>
            </div>
            <div className="divide-y divide-slate-50">
               <div className="p-5 flex items-center justify-between">
@@ -96,28 +124,7 @@ export default function Profile() {
                        <p className="text-[10px] font-black uppercase text-slate-400 tracking-tighter">{new Date(profile?.created_at || '').toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}</p>
                     </div>
                  </div>
-                 <ChevronRight className="h-5 w-5 text-slate-300" />
               </div>
-           </div>
-        </div>
-
-        {/* Quick Menu */}
-        <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-           <div className="divide-y divide-slate-50">
-              {menuItems.map((item, idx) => (
-                <button key={idx} className="w-full p-5 flex items-center justify-between hover:bg-slate-50 transition-colors group">
-                   <div className="flex items-center gap-4">
-                      <div className="bg-slate-50 p-3 rounded-2xl group-hover:bg-primary/20 transition-colors">
-                         <item.icon className="h-5 w-5 text-slate-500 group-hover:text-black transition-colors" />
-                      </div>
-                      <div className="text-left">
-                         <p className="text-sm font-bold text-slate-800">{item.label}</p>
-                         <p className="text-[10px] font-bold text-slate-400 tracking-tight">{item.sub}</p>
-                      </div>
-                   </div>
-                   <ChevronRight className="h-5 w-5 text-slate-300 group-hover:text-primary transition-colors" />
-                </button>
-              ))}
            </div>
         </div>
 

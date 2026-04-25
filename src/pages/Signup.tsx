@@ -28,7 +28,8 @@ export default function Signup() {
         password,
         options: {
           data: {
-            name: fullName
+            name: fullName,
+            full_name: fullName // Added for compatibility with standard providers
           }
         }
       });
@@ -37,21 +38,32 @@ export default function Signup() {
       
       if (signUpError) throw signUpError;
       
+      // If we have a user, try to create the profile record in 'users' table
+      // Note: This might fail if email confirmation is required and RLS blocks non-confirmed users
+      // But our AuthContext will also attempt to create it on first login/session recovery.
       if (data.user) {
-        console.log("Inserting user for auth id:", data.user.id);
+        console.log("Attempting profile creation for:", data.user.id);
         const { error: insertError } = await supabase
           .from('users')
-          .insert([{ id: data.user.id, email, name: fullName, role: 'user' }]);
+          .insert([{ 
+            id: data.user.id, 
+            email, 
+            name: fullName, 
+            role: 'user' 
+          }]);
         
         if (insertError) {
-          console.error("User insertion error:", insertError);
-          setError(insertError.message);
-          return;
+          console.warn("Table insertion failed (expected if email confirmation is on):", insertError.message);
         }
       }
       
-      toast.success('Account created! Please check your email for verification.');
-      navigate('/login');
+      if (data.session) {
+        toast.success('Account created and logged in!');
+        navigate('/');
+      } else {
+        toast.success('Account created! Please check your email for verification.');
+        navigate('/login');
+      }
     } catch (err: any) {
       console.error("Signup error:", err);
       setError(err.message || 'An error occurred during signup');

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../AuthContext';
 import { Order } from '../types';
-import { Package, Clock, CheckCircle2, Truck, XCircle, ShieldCheck, ChevronRight, ShoppingBag } from 'lucide-react';
+import { Package, Clock, CheckCircle2, Truck, XCircle, ShieldCheck, ChevronRight, ShoppingBag, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 
@@ -84,7 +84,7 @@ export default function Orders() {
               <p className="text-xl font-black italic tracking-tighter uppercase">No Orders Found</p>
               <p className="text-slate-400 text-sm font-medium">You haven't ordered anything yet.<br/>Start filling your cart!</p>
             </div>
-            <Link to="/">
+            <Link to="/home">
               <button className="bg-primary px-8 py-3 rounded-2xl font-black italic uppercase tracking-tighter shadow-xl active:scale-95 transition-all">
                 Shop Now
               </button>
@@ -112,9 +112,22 @@ export default function Orders() {
                     minute: '2-digit'
                   })}</p>
                 </div>
-                <div className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase flex items-center gap-1.5 ${getStatusColor(order.status)}`}>
-                   {getStatusIcon(order.status)}
-                   {order.status}
+                <div className="flex items-center gap-2">
+                  {order.invoice_url && (
+                    <a 
+                      href={order.invoice_url} 
+                      target="_blank" 
+                      rel="noreferrer"
+                      className="px-3 py-1 rounded-full border border-emerald-200 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase flex items-center gap-1.5 bg-white hover:bg-emerald-100 transition-colors"
+                    >
+                      <Download className="h-3 w-3" />
+                      Invoice
+                    </a>
+                  )}
+                  <div className={`px-3 py-1 rounded-full border text-[10px] font-black uppercase flex items-center gap-1.5 ${getStatusColor(order.status)}`}>
+                    {getStatusIcon(order.status)}
+                    {order.status}
+                  </div>
                 </div>
               </div>
               

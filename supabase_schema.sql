@@ -42,7 +42,43 @@ CREATE TABLE orders (
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
   payment_id TEXT,
   razorpay_order_id TEXT,
+  address TEXT NOT NULL,
+  pincode TEXT NOT NULL,
+  invoice_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- User Addresses table
+CREATE TABLE user_addresses (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE NOT NULL,
+  full_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  full_address TEXT NOT NULL,
+  city TEXT NOT NULL,
+  pincode TEXT NOT NULL,
+  is_default BOOLEAN DEFAULT false,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- RLS for user_addresses
+ALTER TABLE user_addresses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own addresses" ON user_addresses FOR ALL USING (auth.uid() = user_id);
+
+-- Serviceable Areas for delivery
+CREATE TABLE serviceable_areas (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  pincode TEXT UNIQUE NOT NULL,
+  city TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- RLS for serviceable_areas
+ALTER TABLE serviceable_areas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can view serviceable areas" ON serviceable_areas FOR SELECT USING (true);
+CREATE POLICY "Admins can manage serviceable areas" ON serviceable_areas FOR ALL USING (
+  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
 );
 
 -- 5. Order Items table
@@ -52,6 +88,16 @@ CREATE TABLE order_items (
   product_id UUID REFERENCES products(id) ON DELETE SET NULL,
   quantity INTEGER NOT NULL,
   price DECIMAL(10, 2) NOT NULL
+);
+
+-- 6. Cart table
+CREATE TABLE cart (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE NOT NULL,
+  quantity INTEGER NOT NULL DEFAULT 1,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL,
+  UNIQUE(user_id, product_id)
 );
 
 -- RLS (Row Level Security)
@@ -93,3 +139,36 @@ CREATE POLICY "Users can view own order items" ON order_items FOR SELECT USING (
 CREATE POLICY "Admins can manage all order items" ON order_items FOR ALL USING (
   EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
 );
+
+-- Cart: Users can manage their own cart
+ALTER TABLE cart ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can manage own cart" ON cart FOR ALL USING (auth.uid() = user_id);
+
+-- 7. Storage setup for invoices
+-- Note: These typically go into the storage schema, but we can't easily do that here without standard Supabase storage setup.
+-- We can however define the policies if the bucket exists.
+INSERT INTO storage.buckets (id, name, public) 
+VALUES ('invoices', 'invoices', true)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage policies
+CREATE POLICY "Admins can upload invoices"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id = 'invoices' AND
+  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+
+CREATE POLICY "Admins can update invoices"
+ON storage.objects FOR UPDATE
+TO authenticated
+USING (
+  bucket_id = 'invoices' AND
+  EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin')
+);
+
+CREATE POLICY "Anyone can view invoices"
+ON storage.objects FOR SELECT
+TO public
+USING (bucket_id = 'invoices');

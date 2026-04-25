@@ -6,15 +6,17 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Badge } from '../components/ui/badge';
 import { toast } from 'sonner';
-import { ShoppingBag, Eye, Search } from 'lucide-react';
+import { ShoppingBag, Eye, Search, Download, Loader2 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { generateInvoice } from '../lib/invoiceService';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [generatingInvoiceId, setGeneratingInvoiceId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrders();
@@ -43,15 +45,39 @@ export default function AdminOrders() {
     }
   };
 
-  const updateStatus = async (orderId: string, status: string) => {
+  const updateStatus = async (order: Order, status: string) => {
     try {
       const { error } = await supabase
         .from('orders')
         .update({ status })
-        .eq('id', orderId);
+        .eq('id', order.id);
 
       if (error) throw error;
+      
       toast.success(`Order marked as ${status}`);
+
+      // Generate invoice if status is packed and no invoice exists
+      if (status === 'packed' && !order.invoice_url) {
+        setGeneratingInvoiceId(order.id);
+        try {
+          const invoiceUrl = await generateInvoice(order);
+          await supabase
+            .from('orders')
+            .update({ invoice_url: invoiceUrl })
+            .eq('id', order.id);
+          toast.success('Invoice generated successfully');
+        } catch (err: any) {
+          console.error('Invoice error:', err);
+          if (err.message?.includes('violates row-level security policy')) {
+            toast.error('Permission denied: Please ensure storage policies are set up in Supabase.');
+          } else {
+            toast.error('Failed to generate invoice. Please check if "invoices" bucket exists in Storage.');
+          }
+        } finally {
+          setGeneratingInvoiceId(null);
+        }
+      }
+
       fetchOrders();
     } catch (error: any) {
       toast.error(error.message);
@@ -119,7 +145,7 @@ export default function AdminOrders() {
                 <TableCell key={`${order.id}-${order.status}`}>
                   <Select 
                     defaultValue={order.status} 
-                    onValueChange={(val) => updateStatus(order.id, val)}
+                    onValueChange={(val) => updateStatus(order, val)}
                   >
                     <SelectTrigger className={`w-[130px] h-8 text-xs font-semibold ${getStatusColor(order.status)} border-none`}>
                       <SelectValue />
@@ -134,9 +160,24 @@ export default function AdminOrders() {
                   </Select>
                 </TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => setSelectedOrder(order)}>
-                    <Eye className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center justify-end gap-2">
+                    {order.invoice_url ? (
+                      <a 
+                        href={order.invoice_url} 
+                        target="_blank" 
+                        rel="noreferrer"
+                        className="p-2 hover:bg-slate-100 rounded-lg text-emerald-600 transition-colors"
+                        title="Download Invoice"
+                      >
+                        <Download className="h-4 w-4" />
+                      </a>
+                    ) : generatingInvoiceId === order.id && (
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => setSelectedOrder(order)}>
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}

@@ -5,7 +5,14 @@ import { ProductCard } from '../components/ProductCard';
 import { Search as SearchIcon, Loader2, Sparkles, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
 
+import { useAuth } from '../AuthContext';
+import { useDeliveryLocation } from '../LocationContext';
+import { useNavigate } from 'react-router-dom';
+
 export default function Search() {
+  const { user } = useAuth();
+  const { pincode, isServiceable, setIsModalOpen } = useDeliveryLocation();
+  const navigate = useNavigate();
   const [query, setQuery] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -100,10 +107,30 @@ export default function Search() {
             ) : products.length > 0 ? (
               <div className="space-y-6">
                 <h2 className="text-xs font-black uppercase tracking-widest text-slate-400">Showing {products.length} results</h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-12">
-                  {products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
-                  ))}
+                <div className="relative">
+                  {(!user || !pincode) && (
+                    <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-auto">
+                      <div className="bg-white shadow-xl p-6 rounded-2xl text-center w-[260px] border border-slate-100 animate-in zoom-in-95 duration-500">
+                        <h2 className="font-bold text-lg mb-2">
+                          {!user ? "Login Required" : "Set Location"}
+                        </h2>
+                        <p className="text-sm mb-4">
+                          {!user ? "Login to view products" : "Set your delivery location"}
+                        </p>
+                        <button
+                          onClick={() => !user ? navigate('/login') : setIsModalOpen(true)}
+                          className="bg-yellow-400 px-4 py-2 rounded-lg font-bold w-full"
+                        >
+                          {!user ? "Login" : "Set Location"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 pb-12 transition-all duration-500 ${(!user || !pincode) ? 'opacity-40 grayscale blur-sm pointer-events-none select-none' : ''}`}>
+                    {products.map((product) => (
+                      <ProductCard key={product.id} product={product} />
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : (

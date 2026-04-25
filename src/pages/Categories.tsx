@@ -50,7 +50,7 @@ export default function Categories() {
             <motion.div
               key={cat.id}
               whileTap={{ scale: 0.95 }}
-              onClick={() => navigate(`/?category=${cat.id}`)}
+              onClick={() => navigate(`/category/${cat.id}`)}
               className="flex flex-col items-center gap-2 cursor-pointer group"
             >
               <div className="w-full aspect-square bg-white rounded-3xl border border-slate-100 p-4 shadow-sm flex items-center justify-center group-hover:border-primary/50 group-hover:shadow-md transition-all">

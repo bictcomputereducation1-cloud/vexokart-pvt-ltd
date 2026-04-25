@@ -7,7 +7,8 @@ import {
   Layers, 
   ArrowLeft,
   Settings,
-  Users
+  Users,
+  MapPin
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -30,7 +31,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
       {/* Sidebar */}
       <aside className="w-64 bg-white border-r hidden md:flex flex-col">
         <div className="p-6">
-          <Link to="/" className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors text-sm mb-6">
+          <Link to="/home" className="flex items-center gap-2 text-slate-500 hover:text-primary transition-colors text-sm mb-6">
             <ArrowLeft className="h-4 w-4" />
             Back to Shop
           </Link>

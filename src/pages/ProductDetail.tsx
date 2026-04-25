@@ -4,15 +4,31 @@ import { supabase } from '../lib/supabase';
 import { Product } from '../types';
 import { useCart } from '../CartContext';
 import { motion } from 'motion/react';
-import { ArrowLeft, Star, Clock, ShieldCheck, Zap, Info, Plus, Minus, ChevronRight } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Star, 
+  Search, 
+  Heart, 
+  ShoppingCart, 
+  ChevronRight, 
+  MapPin, 
+  Clock, 
+  CheckCircle2,
+  Share2
+} from 'lucide-react';
 import { toast } from 'sonner';
+import { useDeliveryLocation } from '../LocationContext';
 
 export default function ProductDetail() {
   const { id } = useParams<{ id: string }>();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
-  const { cart, addToCart, removeFromCart } = useCart();
+  const [selectedSize, setSelectedSize] = useState('1kg');
+  const { items, addToCart, totalItems } = useCart();
+  const { pincode, city, setIsModalOpen } = useDeliveryLocation();
   const navigate = useNavigate();
+
+  const sizes = ['500g', '1kg', '2kg', '5kg'];
 
   useEffect(() => {
     if (id) fetchProduct();
@@ -37,157 +53,211 @@ export default function ProductDetail() {
     }
   };
 
-  const cartItem = cart.find(item => item.id === product?.id);
-
   if (loading) return (
     <div className="py-20 flex flex-col items-center justify-center space-y-4">
       <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Loading item details...</p>
+      <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading item details...</p>
     </div>
   );
   if (!product) return null;
 
+  const discountPercent = 12; // Mocked for design
+  const oldPrice = Math.round(product.price * (1 + discountPercent/100));
+  const savings = oldPrice - product.price;
+
+  const handleBuyNow = () => {
+    addToCart(product);
+    navigate('/checkout');
+  };
+
   return (
-    <div className="bg-white min-h-screen pb-32">
-      <div className="relative">
-        {/* Back Button Overlay */}
+    <div className="bg-slate-50 min-h-screen pb-48">
+      {/* 🔹 STICKY HEADER */}
+      <div className="sticky top-0 z-[60] bg-white border-b border-slate-100 px-4 py-3 flex items-center justify-between shadow-sm">
         <button 
           onClick={() => navigate(-1)}
-          className="absolute top-4 left-4 z-10 bg-white/80 backdrop-blur-md p-2 rounded-full shadow-lg border border-white active:scale-95 transition-all"
+          className="p-2 -ml-2 text-slate-700 hover:bg-slate-50 rounded-full transition-colors"
         >
-          <ArrowLeft className="h-5 w-5 text-slate-900" />
+          <ArrowLeft className="h-6 w-6" />
         </button>
+        
+        <span className="text-lg font-black italic tracking-tighter text-emerald-600">
+          VEXO<span className="text-slate-900">KART</span>
+        </span>
 
-        {/* Product Image Section */}
-        <div className="bg-white px-4 pt-12 pb-8 flex justify-center">
+        <div className="flex items-center gap-1">
+          <button className="p-2 text-slate-700 hover:bg-slate-50 rounded-full transition-colors">
+            <Search className="h-5 w-5" />
+          </button>
+          <button className="p-2 text-slate-700 hover:bg-slate-50 rounded-full transition-colors">
+            <Heart className="h-5 w-5" />
+          </button>
+          <button onClick={() => navigate('/cart')} className="p-2 text-slate-700 relative hover:bg-slate-50 rounded-full transition-colors">
+            <ShoppingCart className="h-5 w-5" />
+            {totalItems > 0 && (
+              <span className="absolute top-1 right-1 bg-emerald-600 text-white text-[8px] font-black h-4 w-4 rounded-full flex items-center justify-center border-2 border-white">
+                {totalItems}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-2xl mx-auto">
+        {/* 🔹 PRODUCT IMAGE SECTION */}
+        <div className="bg-white px-4 py-8 relative flex flex-col items-center">
+          <div className="absolute top-4 left-4 z-10 bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full shadow-lg shadow-emerald-100 uppercase tracking-widest">
+            {discountPercent}% OFF
+          </div>
+          <button className="absolute top-4 right-4 z-10 bg-white p-2.5 rounded-full border border-slate-100 shadow-sm text-slate-400">
+            <Share2 className="h-4 w-4" />
+          </button>
+
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="w-full max-w-sm aspect-square bg-white flex items-center justify-center px-8"
+            className="w-full max-w-sm aspect-square bg-slate-50 rounded-[3rem] p-8 flex items-center justify-center border border-slate-100"
           >
             <img 
-              src={product.image_url || `https://picsum.photos/seed/${product.name}/800/800`} 
+              src={product.image_url} 
               alt={product.name}
-              className="max-w-full max-h-full object-contain"
-              referrerPolicy="no-referrer"
+              className="max-w-full max-h-full object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-700"
             />
           </motion.div>
+
+          {/* Slider Dots */}
+          <div className="flex gap-1.5 mt-6">
+            <div className="w-4 h-1.5 bg-emerald-600 rounded-full" />
+            <div className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
+            <div className="w-1.5 h-1.5 bg-slate-200 rounded-full" />
+          </div>
         </div>
 
-        {/* Product Content */}
-        <div className="px-5 space-y-6">
+        {/* 🔹 PRODUCT INFO */}
+        <div className="bg-white px-4 py-6 space-y-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase">
-                <Star className="h-3 w-3 fill-current" /> 4.5
-              </div>
-              <div className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase">
-                12k Reviews
-              </div>
-            </div>
-            <h1 className="text-2xl font-black tracking-tight text-slate-900 leading-tight">
+            <h1 className="text-2xl font-black text-slate-900 leading-tight tracking-tight">
               {product.name}
             </h1>
-            <p className="text-slate-400 font-bold text-xs uppercase tracking-tighter">500 g</p>
-          </div>
-
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <span className="text-3xl font-black text-slate-900 tracking-tighter italic">₹{product.price}</span>
-              <span className="text-lg text-slate-300 line-through font-bold">₹{Math.round(product.price * 1.25)}</span>
-              <div className="bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter">
-                25% OFF
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-black">
+                <Star className="h-3.5 w-3.5 fill-current" /> 4.6 (12.4K)
               </div>
-            </div>
-            <p className="text-[10px] text-slate-400 font-medium">(inclusive of all taxes)</p>
-          </div>
-
-          <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-3">
-             <div className="flex items-center gap-3">
-               <div className="bg-white p-2 rounded-xl shadow-sm">
-                 <Clock className="h-5 w-5 text-emerald-600" />
-               </div>
-               <div className="flex flex-col">
-                 <span className="text-xs font-black uppercase tracking-tight">Delivery in 10-15 mins</span>
-                 <span className="text-[10px] text-slate-400 font-bold uppercase">Superfast Service</span>
-               </div>
-             </div>
-             <div className="flex items-center gap-3">
-               <div className="bg-white p-2 rounded-xl shadow-sm">
-                 <Zap className="h-5 w-5 text-yellow-500" />
-               </div>
-               <div className="flex flex-col">
-                 <span className="text-xs font-black uppercase tracking-tight">Lightning Fast Refund</span>
-                 <span className="text-[10px] text-slate-400 font-bold uppercase">Within 24 Hours</span>
-               </div>
-             </div>
-          </div>
-
-          <div className="space-y-3">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Why buy from us?</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
-                <ShieldCheck className="h-5 w-5 text-primary flex-shrink-0" />
-                <span className="text-[11px] font-bold text-slate-700 leading-tight">Authentic &<br/>Fresh</span>
-              </div>
-              <div className="flex items-center gap-3 p-3 bg-white border border-slate-100 rounded-2xl shadow-sm">
-                <Info className="h-5 w-5 text-primary flex-shrink-0" />
-                <span className="text-[11px] font-bold text-slate-700 leading-tight">High Quality<br/>Check</span>
-              </div>
+              <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
+                10K+ Bought this month
+              </span>
             </div>
           </div>
 
-          <div className="space-y-2 pb-8">
-            <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">Product Details</h3>
-            <p className="text-slate-500 text-sm font-medium leading-relaxed">
-              {product.description || 'This premium quality product is sourced from the best farms to ensure you get the maximum nutrients and taste. Perfect for daily consumption and healthy lifestyle.'}
+          <div className="flex items-end gap-3 pt-2">
+            <div className="flex flex-col">
+              <div className="flex items-center gap-3">
+                <span className="text-3xl font-black text-slate-900 leading-none tracking-tighter">₹{product.price}</span>
+                <span className="text-sm text-slate-400 line-through font-bold leading-none">₹{oldPrice}</span>
+                <span className="text-sm text-emerald-600 font-black mb-0.5">({discountPercent}% OFF)</span>
+              </div>
+              <p className="text-[10px] text-slate-400 font-bold mt-2 uppercase tracking-widest leading-none">Inclusive of all taxes</p>
+            </div>
+          </div>
+
+          {/* 🔹 SAVINGS BOX */}
+          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100 flex items-center gap-3">
+            <div className="h-8 w-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-600">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <p className="text-xs font-black text-emerald-800 uppercase tracking-tight">
+              You save <span className="text-slate-900">₹{savings}</span> on this product
             </p>
+          </div>
+
+          {/* 🔹 SIZE SELECTOR */}
+          <div className="space-y-3 pt-2">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Select Weight</h3>
+            <div className="flex flex-wrap gap-2">
+              {sizes.map(size => (
+                <button
+                  key={size}
+                  onClick={() => setSelectedSize(size)}
+                  className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest border-2 transition-all active:scale-95 ${
+                    selectedSize === size 
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-700' 
+                    : 'border-slate-100 bg-white text-slate-400'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* 🔹 PRODUCT DETAILS LIST */}
+          <div className="space-y-4 pt-4 border-t border-slate-50">
+            <h3 className="text-xs font-black uppercase tracking-widest text-slate-900">Product Details</h3>
+            <ul className="space-y-3">
+              {[
+                "Source from 100% natural fields",
+                "Pure organic process, No preservatives",
+                "Packed with high nutritional value",
+                "Soft and fresh texture in every bite"
+              ].map((text, idx) => (
+                <li key={idx} className="flex items-start gap-3">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span className="text-sm font-bold text-slate-500 leading-tight">{text}</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs font-bold text-slate-400 leading-relaxed pt-2">
+              {product.description || "This premium quality product is carefully selected to offer the best taste and nutrition. Our rigorous quality standards ensure that you receive only the freshest items at your doorstep."}
+            </p>
+          </div>
+
+          {/* 🔹 DELIVERY SECTION */}
+          <div className="bg-slate-50 rounded-[2rem] p-6 space-y-4 border border-slate-100 shadow-inner">
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className="bg-white p-2 rounded-xl shadow-sm">
+                      <MapPin className="h-5 w-5 text-emerald-600" />
+                   </div>
+                   <div className="text-left">
+                      <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Deliver to</p>
+                      <p className="text-xs font-black text-slate-900 tracking-tight">{pincode ? `${city}, ${pincode}` : 'Set Location'}</p>
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setIsModalOpen(true)}
+                  className="bg-white text-emerald-600 border border-emerald-100 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-sm active:scale-95"
+                >
+                  Change
+                </button>
+             </div>
+             
+             <div className="flex items-center gap-3 px-1">
+                <Clock className="h-4 w-4 text-slate-400" />
+                <p className="text-xs font-bold text-slate-500">Delivery in <span className="text-slate-900 font-black">10-14 mins</span> • FREE</p>
+             </div>
           </div>
         </div>
       </div>
 
-      {/* Sticky Bottom Add to Cart Bar */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.05)] md:static sm:bg-transparent sm:border-none sm:shadow-none sm:p-0 sm:max-w-screen-xl sm:mx-auto">
-        {cartItem ? (
-          <div className="bg-primary text-black h-14 md:h-16 rounded-2xl shadow-2xl flex items-center justify-between px-6 transition-all duration-300">
-            <div className="flex flex-col">
-               <span className="font-black italic text-lg leading-none">₹{product.price * cartItem.quantity}</span>
-               <span className="text-[10px] font-bold uppercase opacity-60">Total Amount</span>
-            </div>
-            <div className="flex items-center gap-6">
-              <button 
-                onClick={() => removeFromCart(product.id)}
-                className="bg-black/10 hover:bg-black/20 p-2 rounded-xl transition-colors"
-              >
-                <Minus className="h-5 w-5" />
-              </button>
-              <span className="text-xl font-bold">{cartItem.quantity}</span>
-              <button 
-                onClick={() => addToCart(product)}
-                className="bg-black/10 hover:bg-black/20 p-2 rounded-xl transition-colors"
-              >
-                <Plus className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        ) : (
+      {/* 🔹 STICKY FOOTER */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-6 z-[70] shadow-[0_-15px_50px_rgba(0,0,0,0.12)]">
+        <div className="max-w-2xl mx-auto flex items-center gap-3">
           <button 
-            disabled={product.stock <= 0}
-            onClick={() => {
-              addToCart(product);
-              toast.success('Excellent choice! Added to cart.');
-            }}
-            className="w-full h-14 md:h-16 bg-primary hover:bg-primary/95 text-black font-black italic text-lg rounded-2xl shadow-2xl flex items-center justify-center gap-3 active:scale-95 transition-all disabled:bg-slate-100 disabled:text-slate-300 disabled:scale-100"
+            onClick={() => addToCart(product)}
+            className="flex-1 h-14 bg-white border-2 border-emerald-600 text-emerald-600 rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all shadow-lg shadow-emerald-50"
           >
-            {product.stock > 0 ? (
-              <>ADD TO CART <ChevronRight className="h-6 w-6" /></>
-            ) : (
-              'OUT OF STOCK'
-            )}
+            Add to Cart
           </button>
-        )}
+          <button 
+            onClick={handleBuyNow}
+            className="flex-[1.5] h-14 bg-emerald-600 text-white rounded-full font-black text-[12px] uppercase tracking-widest hover:bg-emerald-700 active:scale-95 transition-all shadow-xl shadow-emerald-100"
+          >
+            Buy Now
+          </button>
+        </div>
       </div>
     </div>
   );
 }
+
 

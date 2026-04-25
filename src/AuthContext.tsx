@@ -22,13 +22,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Check active sessions and subscribe to auth changes
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) fetchProfile(session.user.id, session.user);
       else setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id);
+      if (session?.user) fetchProfile(session.user.id, session.user);
       else {
         setProfile(null);
         setLoading(false);
@@ -38,19 +38,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchProfile = async (userId: string) => {
+  const fetchProfile = async (userId: string, authUser?: User) => {
     try {
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setProfile(data);
+      if (data) {
+        setProfile(data);
+        setLoading(false);
+      } else {
+        // If profile doesn't exist in 'users' table, create it
+        // This handles cases where signup insert failed or third-party auth was used
+        const name = authUser?.user_metadata?.name || authUser?.user_metadata?.full_name || 'Vexokart User';
+        const email = authUser?.email || '';
+        
+        const { data: newProfile, error: insertError } = await supabase
+          .from('users')
+          .insert([{ 
+            id: userId, 
+            email, 
+            name, 
+            role: 'user' 
+          }])
+          .select()
+          .single();
+
+        if (insertError) {
+          console.error('Error creating profile:', insertError);
+          // Still set a temporary profile from auth data to avoid "Vexokart User" if we have metadata
+          setProfile({
+            id: userId,
+            email,
+            name,
+            role: 'user',
+            created_at: new Date().toISOString()
+          });
+        } else {
+          setProfile(newProfile);
+        }
+        setLoading(false);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
-    } finally {
       setLoading(false);
     }
   };

@@ -59,7 +59,9 @@ async function startServer() {
         razorpay_signature,
         userId,
         amount,
-        items
+        items,
+        address,
+        pincode
       } = req.body;
 
       // 1. Verify signature
@@ -85,7 +87,9 @@ async function startServer() {
           payment_method: 'online',
           payment_status: 'paid',
           payment_id: razorpay_payment_id,
-          razorpay_order_id: razorpay_order_id
+          razorpay_order_id: razorpay_order_id,
+          address: address,
+          pincode: pincode
         }])
         .select()
         .single();

@@ -38,9 +38,32 @@ export interface Order {
   payment_status: 'pending' | 'paid' | 'failed';
   payment_id: string | null;
   razorpay_order_id: string | null;
+  address: string;
+  pincode: string;
+  invoice_url: string | null;
   created_at: string;
   users?: Profile;
   order_items?: OrderItem[];
+}
+
+export interface Address {
+  id: string;
+  user_id: string;
+  full_name: string;
+  phone: string;
+  full_address: string;
+  city: string;
+  pincode: string;
+  is_default: boolean;
+  created_at: string;
+}
+
+export interface ServiceableArea {
+  id: string;
+  pincode: string;
+  city: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface OrderItem {
