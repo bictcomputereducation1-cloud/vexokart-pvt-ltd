@@ -2,7 +2,6 @@ import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
 import { fileURLToPath } from "url";
-import Razorpay from "razorpay";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
@@ -32,71 +31,54 @@ async function startServer() {
   const razorpayKeyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY);
   const razorpayKeySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET);
 
-  // Helper function to safely get Razorpay instance
-  let razorpayInstance: Razorpay | null = null;
-  const getRazorpay = () => {
-    if (!razorpayKeyId || !razorpayKeySecret) {
-      return null;
-    }
-    if (!razorpayInstance) {
-      razorpayInstance = new Razorpay({
-        key_id: razorpayKeyId,
-        key_secret: razorpayKeySecret,
-      });
-    }
-    return razorpayInstance;
-  };
-
-  // Log status for debugging (SAFE: only shows masked values)
-  console.log("--- Razorpay Config Check ---");
-  console.log("Key ID present:", razorpayKeyId ? `✅ (${razorpayKeyId.substring(0, 6)}...)` : "❌ MISSING");
-  console.log("Key Secret present:", razorpayKeySecret ? `✅ (${razorpayKeySecret.substring(0, 2)}...***)` : "❌ MISSING");
-  if (razorpayKeyId && !razorpayKeyId.startsWith('rzp_')) {
-    console.warn("⚠️ Warning: Razorpay Key ID looks unusual (usually starts with rzp_)");
-  }
-  console.log("----------------------------");
-
   // API Routes
   app.post("/api/payment/order", async (req, res) => {
     try {
       const { amount, currency = "INR", receipt } = req.body;
       
-      const rzp = getRazorpay();
-      if (!rzp) {
+      const razorpayKeyId = process.env.RAZORPAY_KEY_ID?.trim();
+      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
+      
+      if (!razorpayKeyId || !razorpayKeySecret) {
+        console.error("Razorpay keys missing in environment variables!");
         return res.status(500).json({ 
-          error: "Razorpay keys not configured on server",
-          details: "Please ensure RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are set in environment variables." 
+          error: "Razorpay server configuration error",
         });
       }
 
-      const options = {
-        amount: Math.round(Number(amount) * 100),
-        currency,
-        receipt: receipt || `receipt_${Date.now()}`,
-      };
+      // Create Basic Authentication header
+      const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
 
-      console.log("Creating Razorpay order...");
-      const order = await rzp.orders.create(options);
+      console.log(`Initiating Razorpay order for ${amount} INR...`);
+
+      const response = await fetch("https://api.razorpay.com/v1/orders", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Basic ${auth}`
+        },
+        body: JSON.stringify({
+          amount: Math.round(Number(amount) * 100),
+          currency,
+          receipt: receipt || `receipt_${Date.now()}`,
+        })
+      });
+
+      const order = await response.json();
+
+      if (response.status !== 200 && response.status !== 201) {
+        console.error("Razorpay API order creation failed:", order);
+        return res.status(response.status).json({
+          error: "Razorpay order creation failed",
+          details: order
+        });
+      }
+
+      console.log("Razorpay order created successfully:", order.id);
       res.json(order);
     } catch (error: any) {
-      console.error("Razorpay Order Error:", error);
-      
-      // Handle authentication specifically
-      if (error.statusCode === 401 || (error.error && error.error.description === "Authentication failed")) {
-        return res.status(401).json({
-          error: "Authentication failed",
-          message: "The Razorpay Key ID or Secret is incorrect.",
-          code: "AUTH_FAILED"
-        });
-      }
-
-      const statusCode = error.statusCode || 500;
-      const errorMsg = error.error?.description || "Failed to create Razorpay order";
-      res.status(statusCode).json({ 
-        error: errorMsg,
-        code: error.error?.code,
-        details: error.error
-      });
+      console.error("Razorpay Order Server Error:", error);
+      res.status(500).json({ error: "Internal server error during payment initiation" });
     }
   });
 
@@ -113,8 +95,11 @@ async function startServer() {
         pincode,
         discount_amount,
         coupon_code,
-        delivery_fee
+        delivery_fee,
+        vendor_id // New field
       } = req.body;
+
+      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
 
       // 1. Verify signature
       const sign = razorpay_order_id + "|" + razorpay_payment_id;
@@ -135,6 +120,7 @@ async function startServer() {
         .insert([{
           user_id: userId,
           total_amount: amount,
+          vendor_id: vendor_id || null, // Include vendor_id
           discount_amount: discount_amount || 0,
           coupon_code: coupon_code || null,
           delivery_fee: delivery_fee || 0,

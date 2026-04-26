@@ -34,6 +34,7 @@ export interface Order {
   id: string;
   user_id: string;
   total_amount: number;
+  vendor_id: string | null;
   status: 'pending' | 'confirmed' | 'packed' | 'delivered' | 'cancelled';
   payment_method: 'cod' | 'online' | null;
   payment_status: 'pending' | 'paid' | 'failed';
@@ -45,6 +46,17 @@ export interface Order {
   created_at: string;
   users?: Profile;
   order_items?: OrderItem[];
+  vendors?: Vendor;
+}
+
+export interface Vendor {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  pincode: string;
+  is_active: boolean;
+  created_at: string;
 }
 
 export interface Address {

@@ -49,8 +49,37 @@ export default function Checkout() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
+  const [vendorLoading, setVendorLoading] = useState(false);
+  const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE' | null>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (selectedAddress) {
+      checkServiceability(selectedAddress.pincode);
+    }
+  }, [selectedAddress]);
+
+  const checkServiceability = async (pincode: string) => {
+    setVendorLoading(true);
+    try {
+      const { data: vendor, error } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('pincode', pincode)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      setIsPincodeServiceable(!!vendor);
+    } catch (error) {
+      console.error('Error checking serviceability:', error);
+      setIsPincodeServiceable(null);
+    } finally {
+      setVendorLoading(false);
+    }
+  };
 
   const deliveryCharges = deliveryFee;
   const finalAmount = finalTotal;
@@ -80,6 +109,28 @@ export default function Checkout() {
     if (!selectedAddress) return;
     setLoading(true);
     try {
+      // 1. Check for vendor availability first
+      const { data: vendor, error: vendorError } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('pincode', selectedAddress.pincode)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (vendorError) {
+        console.error('Vendor check error:', vendorError);
+        toast.error('Could not verify service availability');
+        setLoading(false);
+        return;
+      }
+
+      if (!vendor) {
+        toast.error('Service not available at this pincode');
+        setLoading(false);
+        return;
+      }
+
       const res = await loadRazorpay();
       if (!res) {
         toast.error('Razorpay SDK failed to load');
@@ -126,7 +177,8 @@ export default function Checkout() {
               pincode: selectedAddress.pincode,
               discount_amount: couponDiscountValue,
               coupon_code: appliedCoupon?.code,
-              delivery_fee: deliveryFee
+              delivery_fee: deliveryFee,
+              vendor_id: vendor.id // Pass the found vendor_id
             });
 
             if (verifyData.success) {
@@ -166,6 +218,28 @@ export default function Checkout() {
     if (!selectedAddress) return;
     setLoading(true);
     try {
+      // 1. Find assigned vendor
+      const { data: vendor, error: vendorError } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('pincode', selectedAddress.pincode)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (vendorError) {
+        console.error('Vendor assignment error:', vendorError);
+        toast.error('Could not assign vendor for this order');
+        setLoading(false);
+        return;
+      }
+
+      if (!vendor) {
+        toast.error('Service not available at this pincode');
+        setLoading(false);
+        return;
+      }
+
       const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
       
       const { data: newOrder, error: orderError } = await supabase
@@ -173,6 +247,7 @@ export default function Checkout() {
         .insert([{
           user_id: user?.id,
           total_amount: finalAmount,
+          vendor_id: vendor.id, // Assign vendor
           discount_amount: couponDiscountValue,
           coupon_code: appliedCoupon?.code,
           delivery_fee: deliveryFee,
@@ -325,6 +400,17 @@ export default function Checkout() {
               selectedId={selectedAddress?.id}
               onSelect={(addr) => setSelectedAddress(addr)}
             />
+
+           {selectedAddress && isPincodeServiceable === false && !vendorLoading && (
+             <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-center gap-3">
+                <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center text-red-600 shadow-sm">
+                   <Package className="h-5 w-5" />
+                </div>
+                <p className="text-[10px] font-black uppercase text-red-900 tracking-tight">
+                  Service not available at this pincode ({selectedAddress.pincode})
+                </p>
+             </div>
+           )}
 
            <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-3 border border-slate-100/50">
               <Package className="h-5 w-5 text-slate-400" />
@@ -495,12 +581,12 @@ export default function Checkout() {
           </div>
 
           <button 
-            disabled={loading || !selectedAddress}
+            disabled={loading || !selectedAddress || isPincodeServiceable === false || vendorLoading}
             onClick={handlePayment}
             className="flex-grow bg-emerald-600 text-white h-16 rounded-[2rem] shadow-2xl shadow-emerald-100 flex flex-col items-center justify-center active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100"
           >
             <span className="text-[12px] font-black uppercase tracking-wider">
-               {paymentMethod === 'ONLINE' ? 'Pay Now' : 'Place Order (Cash on Delivery)'}
+               {vendorLoading ? 'Verifying Service...' : isPincodeServiceable === false ? 'Service Not Available' : paymentMethod === 'ONLINE' ? 'Pay Now' : 'Place Order (Cash on Delivery)'}
             </span>
             <span className="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-0.5">
               {paymentMethod === 'COD' ? 'Secure Checkout' : 'Secure Online Payment'}
