@@ -49,6 +49,7 @@ export default function AdminProducts() {
       name: formData.get('name') as string,
       description: formData.get('description') as string,
       price: parseFloat(formData.get('price') as string),
+      original_price: parseFloat(formData.get('original_price') as string),
       stock: parseInt(formData.get('stock') as string),
       category_id: formData.get('category_id') as string,
       image_url: formData.get('image_url') as string,
@@ -119,21 +120,34 @@ export default function AdminProducts() {
                   <label className="text-sm font-semibold text-slate-700">Product Name</label>
                   <Input 
                     name="name" 
-                    defaultValue={editingProduct?.name} 
+                    defaultValue={editingProduct?.name || ''} 
                     required 
                     className="h-11 shadow-sm"
                     placeholder="e.g. Organic Bananas"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700">Price (₹)</label>
+                  <label className="text-sm font-semibold text-slate-700">MRP (₹)</label>
+                  <Input 
+                    name="original_price" 
+                    type="number" 
+                    step="0.01" 
+                    defaultValue={editingProduct?.original_price || ''} 
+                    required 
+                    className="h-11 shadow-sm"
+                    placeholder="Original price"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Selling Price (₹)</label>
                   <Input 
                     name="price" 
                     type="number" 
                     step="0.01" 
-                    defaultValue={editingProduct?.price} 
+                                        defaultValue={editingProduct?.price || ''} 
                     required 
                     className="h-11 shadow-sm"
+                    placeholder="Discounted price"
                   />
                 </div>
                 <div className="space-y-2">
@@ -141,7 +155,7 @@ export default function AdminProducts() {
                   <Input 
                     name="stock" 
                     type="number" 
-                    defaultValue={editingProduct?.stock} 
+                    defaultValue={editingProduct?.stock || ''} 
                     required 
                     className="h-11 shadow-sm"
                   />
@@ -150,7 +164,7 @@ export default function AdminProducts() {
               
               <div className="space-y-2" key={editingProduct?.id || 'new'}>
                 <label className="text-sm font-semibold text-slate-700">Category</label>
-                <Select name="category_id" defaultValue={editingProduct?.category_id || undefined}>
+                <Select name="category_id" defaultValue={editingProduct?.category_id || ''}>
                   <SelectTrigger className="h-11 shadow-sm">
                     <SelectValue placeholder="Identify category" />
                   </SelectTrigger>
@@ -164,12 +178,12 @@ export default function AdminProducts() {
 
               <div className="space-y-2">
                 <label className="text-sm font-semibold text-slate-700">Image URL</label>
-                <Input 
-                  name="image_url" 
-                  defaultValue={editingProduct?.image_url} 
-                  placeholder="https://images.unsplash.com/..." 
-                  className="h-11 shadow-sm"
-                />
+                  <Input 
+                    name="image_url" 
+                    defaultValue={editingProduct?.image_url || ''} 
+                    placeholder="https://images.unsplash.com/..." 
+                    className="h-11 shadow-sm"
+                  />
               </div>
 
               <div className="space-y-2">
@@ -239,7 +253,8 @@ export default function AdminProducts() {
             <TableRow>
               <TableHead>Product</TableHead>
               <TableHead>Category</TableHead>
-              <TableHead>Price</TableHead>
+              <TableHead>MRP</TableHead>
+              <TableHead>Selling</TableHead>
               <TableHead>Stock</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -264,7 +279,8 @@ export default function AdminProducts() {
                   </div>
                 </TableCell>
                 <TableCell>{(product as any).categories?.name || 'N/A'}</TableCell>
-                <TableCell>₹{product.price}</TableCell>
+                <TableCell className="text-slate-400 line-through">₹{product.original_price}</TableCell>
+                <TableCell className="font-bold text-green-600">₹{product.price}</TableCell>
                 <TableCell>
                   <span className={product.stock < 10 ? 'text-red-500 font-bold' : ''}>
                     {product.stock}

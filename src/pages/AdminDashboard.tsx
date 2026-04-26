@@ -12,7 +12,8 @@ import {
   TrendingUp, 
   Users, 
   ArrowUpRight,
-  AlertCircle
+  AlertCircle,
+  Settings
 } from 'lucide-react';
 
 export default function AdminDashboard() {
@@ -80,6 +81,12 @@ export default function AdminDashboard() {
           </Link>
           <Link to="/admin/orders">
             <button className="bg-primary border-2 border-primary px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95">Manage Orders</button>
+          </Link>
+          <Link to="/admin/coupons">
+            <button className="bg-emerald-600 border-2 border-emerald-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95">Coupons</button>
+          </Link>
+          <Link to="/admin/settings">
+            <button className="bg-slate-900 border-2 border-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all active:scale-95">Settings</button>
           </Link>
         </div>
       </div>

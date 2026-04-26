@@ -7,6 +7,7 @@ import { Address } from '../types';
 import { AddressSelector } from '../components/AddressSelector';
 import { toast } from 'sonner';
 import axios from 'axios';
+import { cn } from '../lib/utils';
 import { 
   Loader2, 
   CreditCard, 
@@ -32,20 +33,36 @@ declare global {
 }
 
 export default function Checkout() {
-  const { items, totalPrice, clearCart, updateQuantity, removeFromCart } = useCart();
+  const { 
+    items, 
+    totalPrice, 
+    totalMRP, 
+    totalDiscount: cartDiscount, 
+    deliveryFee, 
+    finalTotal, 
+    appliedCoupon, 
+    couponDiscountValue,
+    clearCart, 
+    updateQuantity, 
+    removeFromCart 
+  } = useCart();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'online' | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE' | null>(null);
   const navigate = useNavigate();
+
+  const deliveryCharges = deliveryFee;
+  const finalAmount = finalTotal;
+  const totalOrderDiscount = cartDiscount + couponDiscountValue;
 
   const isCodAllowed = items.every((item) => item.cod_available !== false);
   const isOnlineAllowed = items.every((item) => item.online_payment !== false);
 
   useEffect(() => {
     if (!paymentMethod) {
-      if (isOnlineAllowed) setPaymentMethod('online');
-      else if (isCodAllowed) setPaymentMethod('cod');
+      if (isOnlineAllowed) setPaymentMethod('ONLINE');
+      else if (isCodAllowed) setPaymentMethod('COD');
     }
   }, [isOnlineAllowed, isCodAllowed]);
 
@@ -70,16 +87,26 @@ export default function Checkout() {
         return;
       }
 
+      // 4. Razorpay flow calling Local Server Proxy
+      console.log('Initiating Razorpay order creation...');
       const { data: orderData } = await axios.post('/api/payment/order', {
-        amount: totalPrice,
+        amount: finalAmount,
         currency: 'INR',
         receipt: `receipt_${Date.now()}`,
+      }).catch(err => {
+        if (err.response?.status === 401) {
+          throw new Error('Razorpay Authentication Failed: Please check your API Key and Secret in settings.');
+        }
+        throw err;
       });
 
+      // Get and clean the Razorpay Key ID for client-side use
+      const razorpayKeyId = (import.meta.env.VITE_RAZORPAY_KEY_ID || import.meta.env.VITE_RAZORPAY_KEY || "").trim().replace(/^["']|["']$/g, "").trim();
+
       const options = {
-        key: import.meta.env.VITE_RAZORPAY_KEY_ID,
+        key: razorpayKeyId,
         amount: orderData.amount,
-        currency: orderData.currency,
+        currency: 'INR',
         name: 'VEXOKART',
         description: 'Grocery Purchase',
         order_id: orderData.id,
@@ -87,27 +114,31 @@ export default function Checkout() {
           try {
             const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
             
+            // 5. Use server-side verification and order creation
             const { data: verifyData } = await axios.post('/api/payment/verify', {
               razorpay_order_id: response.razorpay_order_id,
               razorpay_payment_id: response.razorpay_payment_id,
               razorpay_signature: response.razorpay_signature,
               userId: user?.id,
-              amount: totalPrice,
+              amount: finalAmount,
               items: items,
               address: fullAddressText,
-              pincode: selectedAddress.pincode
+              pincode: selectedAddress.pincode,
+              discount_amount: couponDiscountValue,
+              coupon_code: appliedCoupon?.code,
+              delivery_fee: deliveryFee
             });
 
             if (verifyData.success) {
               toast.success('Order Confirmed!');
               clearCart();
-              navigate(`/order-success/${orderData.id}`);
+              navigate(`/order-success/${verifyData.orderId}`);
             } else {
               toast.error('Payment verification failed');
             }
           } catch (error) {
-            console.error('Payment verification failed:', error);
-            toast.error('Payment verification failed');
+            console.error('Finalizing order failed:', error);
+            toast.error('Failed to verify payment and save order');
           }
         },
         prefill: {
@@ -124,7 +155,8 @@ export default function Checkout() {
       paymentObject.open();
     } catch (error: any) {
       console.error('Payment error:', error);
-      toast.error(error.response?.data?.error || 'Payment failed');
+      const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || 'Payment failed';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -140,7 +172,10 @@ export default function Checkout() {
         .from('orders')
         .insert([{
           user_id: user?.id,
-          total_amount: totalPrice,
+          total_amount: finalAmount,
+          discount_amount: couponDiscountValue,
+          coupon_code: appliedCoupon?.code,
+          delivery_fee: deliveryFee,
           status: 'pending',
           payment_method: 'cod',
           payment_status: 'pending',
@@ -185,9 +220,9 @@ export default function Checkout() {
       return;
     }
 
-    if (paymentMethod === 'online') {
+    if (paymentMethod === 'ONLINE') {
       await handleOnlinePayment();
-    } else if (paymentMethod === 'cod') {
+    } else if (paymentMethod === 'COD') {
       await handleCodPayment();
     } else {
       toast.error('Please select a payment method');
@@ -219,7 +254,6 @@ export default function Checkout() {
     );
   }
 
-  const savedAmount = Math.round(totalPrice * 0.15); // Mocked savings for UI
 
   return (
     <div className="bg-slate-50 min-h-screen pb-40">
@@ -295,7 +329,7 @@ export default function Checkout() {
            <div className="bg-slate-50 p-4 rounded-2xl flex items-center gap-3 border border-slate-100/50">
               <Package className="h-5 w-5 text-slate-400" />
               <p className="text-[11px] font-bold text-slate-500 leading-tight">
-                Delivery by <span className="text-slate-900 font-black">Today, 2:00 PM</span> • <span className="text-emerald-600 font-black">FREE delivery</span> above ₹299
+                Delivery by <span className="text-slate-900 font-black">Express Delivery</span> • <span className="text-emerald-600 font-black uppercase italic">{deliveryFee === 0 ? 'FREE delivery' : `Delivery Charge: ₹${deliveryFee}`}</span> applied
               </p>
            </div>
         </div>
@@ -344,8 +378,14 @@ export default function Checkout() {
 
                  <div className="text-right flex flex-col items-end">
                     <p className="text-sm font-black text-slate-900 leading-none">₹{item.price * item.quantity}</p>
-                    <p className="text-[10px] text-slate-300 line-through font-bold mt-1 leading-none">₹{Math.round(item.price * 1.2 * item.quantity)}</p>
-                    <span className="text-[9px] font-black text-emerald-600 uppercase mt-1">20% OFF</span>
+                    {item.original_price && item.original_price > item.price && (
+                      <>
+                        <p className="text-[10px] text-slate-300 line-through font-bold mt-1 leading-none">₹{item.original_price * item.quantity}</p>
+                        <span className="text-[9px] font-black text-emerald-600 uppercase mt-1">
+                          {Math.round(((item.original_price - item.price) / item.original_price) * 100)}% OFF
+                        </span>
+                      </>
+                    )}
                  </div>
                </div>
              ))}
@@ -358,10 +398,10 @@ export default function Checkout() {
            
            <div className="space-y-3">
               {[
-                { id: 'online', name: 'PhonePe / GPay', icon: Smartphone, sub: 'Instant & Secure Payment' },
-                { id: 'cod', name: 'Cash on Delivery', icon: Package, sub: 'Pay at your doorstep' }
+                { id: 'ONLINE', name: 'PhonePe / GPay', icon: Smartphone, sub: 'Instant & Secure Payment' },
+                { id: 'COD', name: 'Cash on Delivery', icon: Package, sub: 'Pay at your doorstep' }
               ].map(method => {
-                const isAllowed = method.id === 'online' ? isOnlineAllowed : isCodAllowed;
+                const isAllowed = method.id === 'ONLINE' ? isOnlineAllowed : isCodAllowed;
                 return (
                   <button
                     key={method.id}
@@ -402,26 +442,34 @@ export default function Checkout() {
            
            <div className="space-y-3">
               <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
-                 <span>Item Total</span>
-                 <span className="text-slate-900 font-black italic">₹{totalPrice}</span>
+                 <span>Total MRP</span>
+                 <span className="text-slate-900 font-black italic">₹{totalMRP}</span>
               </div>
               <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
-                 <span>Delivery Fee</span>
-                 <span className="text-emerald-600 font-black italic">FREE</span>
+                 <span>Discount</span>
+                 <span className="text-emerald-600 font-black italic">-₹{cartDiscount}</span>
               </div>
-              <div className="flex justify-between items-center text-xs font-bold text-emerald-600 uppercase tracking-widest">
-                 <span>You Saved</span>
-                 <span className="font-black italic">₹{savedAmount}</span>
+              {appliedCoupon && (
+                <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
+                   <span>Coupon Discount ({appliedCoupon.code})</span>
+                   <span className="text-emerald-600 font-black italic">-₹{couponDiscountValue}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center text-xs font-bold text-slate-500 uppercase tracking-widest">
+                 <span>Delivery</span>
+                 <span className={cn("font-black italic", deliveryFee === 0 ? "text-emerald-600" : "text-slate-900")}>
+                   {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
+                 </span>
               </div>
               
               <div className="pt-4 border-t border-dashed border-slate-100 flex justify-between items-end">
                 <div>
                    <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">To Pay</p>
-                   <p className="text-2xl font-black italic tracking-tighter text-slate-900">₹{totalPrice}</p>
+                   <p className="text-2xl font-black italic tracking-tighter text-slate-900">₹{finalAmount}</p>
                 </div>
                 <div className="bg-emerald-50 px-4 py-2 rounded-xl border border-emerald-100">
                    <p className="text-[9px] font-black text-emerald-800 uppercase tracking-widest text-center">
-                     Total Saving <span className="text-slate-900">₹{savedAmount}</span>
+                     Total Saving <span className="text-slate-900">₹{totalOrderDiscount}</span>
                    </p>
                 </div>
               </div>
@@ -440,7 +488,7 @@ export default function Checkout() {
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
           <div className="flex flex-col group cursor-pointer" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' })}>
             <div className="flex items-center gap-1">
-               <span className="text-xl font-black italic tracking-tighter text-slate-900">₹{totalPrice}</span>
+               <span className="text-xl font-black italic tracking-tighter text-slate-900">₹{finalAmount}</span>
                <ChevronRight className="h-4 w-4 text-slate-400 group-hover:translate-x-1 transition-transform" />
             </div>
             <span className="text-[9px] font-black uppercase text-emerald-600 tracking-widest">View Details</span>
@@ -451,9 +499,11 @@ export default function Checkout() {
             onClick={handlePayment}
             className="flex-grow bg-emerald-600 text-white h-16 rounded-[2rem] shadow-2xl shadow-emerald-100 flex flex-col items-center justify-center active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100"
           >
-            <span className="text-[12px] font-black uppercase tracking-wider">Place Order</span>
+            <span className="text-[12px] font-black uppercase tracking-wider">
+               {paymentMethod === 'ONLINE' ? 'Pay Now' : 'Place Order (Cash on Delivery)'}
+            </span>
             <span className="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-0.5">
-              {paymentMethod === 'cod' ? 'Cash on Delivery' : 'Secure Online Payment'}
+              {paymentMethod === 'COD' ? 'Secure Checkout' : 'Secure Online Payment'}
             </span>
           </button>
         </div>

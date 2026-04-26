@@ -71,7 +71,10 @@ export default function OrderSuccess() {
     );
   }
 
-  const savedAmount = Math.round((order?.total_amount || 0) * 0.15);
+  const itemTotal = order?.order_items?.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0) || 0;
+  const totalMRP = order?.order_items?.reduce((sum: number, item: any) => sum + (item.products?.original_price || item.products?.price || item.price) * item.quantity, 0) || 0;
+  const savedAmount = totalMRP - itemTotal;
+  const deliveryFee = Math.max(0, (order?.total_amount || 0) - itemTotal);
   const orderIdShort = `VEX${order?.id?.substring(0, 8).toUpperCase()}`;
 
   return (
@@ -205,11 +208,13 @@ export default function OrderSuccess() {
               </div>
               <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
                  <span>Item Total</span>
-                 <span className="text-slate-900 italic tracking-tighter">₹{order?.total_amount}</span>
+                 <span className="text-slate-900 italic tracking-tighter">₹{itemTotal}</span>
               </div>
               <div className="flex justify-between items-center text-xs font-black uppercase tracking-widest text-slate-400">
                  <span>Delivery Fee</span>
-                 <span className="text-emerald-600 italic tracking-tighter">FREE</span>
+                 <span className={`${deliveryFee === 0 ? 'text-emerald-600' : 'text-slate-900'} italic tracking-tighter`}>
+                    {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
+                 </span>
               </div>
            </div>
            

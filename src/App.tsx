@@ -25,6 +25,8 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
 import AdminOrders from './pages/AdminOrders';
 import AdminCategories from './pages/AdminCategories';
+import AdminCoupons from './pages/AdminCoupons';
+import AdminSettings from './pages/AdminSettings';
 import { AdminLayout } from './components/AdminLayout';
 
 export default function App() {
@@ -48,13 +50,15 @@ export default function App() {
                 <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
                 <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
                 <Route path="/search" element={<Search />} />
-                <Route path="/category/:id" element={<CategoryProducts />} />
+                <Route path="/category/:identifier" element={<CategoryProducts />} />
                 
                 {/* Admin Routes */}
                 <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminLayout><AdminProducts /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><AdminOrders /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminLayout><AdminCategories /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/coupons" element={<ProtectedRoute adminOnly><AdminLayout><AdminCoupons /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminLayout><AdminSettings /></AdminLayout></ProtectedRoute>} />
               </Routes>
             </Layout>
           </Router>

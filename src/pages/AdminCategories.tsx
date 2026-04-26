@@ -95,7 +95,7 @@ export default function AdminCategories() {
             <form onSubmit={handleSave} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Category Name</label>
-                <Input name="name" defaultValue={editingCategory?.name} required />
+                <Input name="name" defaultValue={editingCategory?.name || ''} required />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Image URL</label>

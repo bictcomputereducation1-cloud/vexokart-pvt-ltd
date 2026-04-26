@@ -61,13 +61,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         </div>
 
         {product.stock <= 0 && (
-          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center p-4 text-center">
+          <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center p-4 text-center pointer-events-none">
             <span className="text-red-600 font-black text-[10px] uppercase tracking-widest border border-red-200 px-2 py-1 rounded-lg bg-white shadow-xl">Out of Stock</span>
           </div>
         )}
 
         {pincode && !isServiceable && (
-          <div className="absolute inset-0 bg-slate-50/40 backdrop-blur-[1px] flex items-center justify-center p-3">
+          <div className="absolute inset-0 bg-slate-50/40 backdrop-blur-[1px] flex items-center justify-center p-3 pointer-events-none">
             <div className="bg-white/90 border border-slate-200 px-2 py-1 rounded-lg shadow-sm flex items-center gap-1.5 overflow-hidden">
               <MapPinOff className="h-3 w-3 text-slate-400" />
               <span className="text-slate-400 font-bold text-[8px] uppercase tracking-wider whitespace-nowrap">Unavailable</span>
@@ -92,8 +92,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         
         <div className="flex items-center justify-between mt-auto">
           <div className="flex flex-col">
-            <span className="text-[10px] text-slate-400 line-through leading-none font-bold">₹{Math.round(product.price * 1.2)}</span>
-            <span className="text-sm font-black text-slate-900 tracking-tight leading-none">₹{product.price}</span>
+            {product.original_price && product.original_price > product.price && (
+              <span className="text-[10px] text-slate-400 line-through leading-none font-bold">₹{product.original_price}</span>
+            )}
+            <span className="text-sm font-black text-[#10b981] tracking-tight leading-none">₹{product.price}</span>
           </div>
           
           <button

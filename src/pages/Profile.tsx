@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
-import { User, Mail, Shield, Calendar, LogOut, ChevronRight, MapPin, Bell, CreditCard, HelpCircle, LayoutDashboard } from 'lucide-react';
+import { User, Mail, Shield, Calendar, LogOut, ChevronRight, MapPin, Bell, CreditCard, HelpCircle, LayoutDashboard, ShoppingBag } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AddressSelector } from '../components/AddressSelector';
 import { Link } from 'react-router-dom';
@@ -25,6 +25,7 @@ export default function Profile() {
   );
 
   const menuItems = [
+    { icon: ShoppingBag, label: 'My Orders', sub: 'Order History & Status', path: '/orders' },
     { icon: CreditCard, label: 'Payments', sub: 'Saved Cards, UPI' },
     { icon: Bell, label: 'Notifications', sub: 'Offers, Order Updates' },
     { icon: HelpCircle, label: 'Help & Support', sub: 'FAQs, Contact' },
@@ -93,6 +94,32 @@ export default function Profile() {
               <AddressSelector onSelect={() => {}} />
             </div>
           )}
+        </div>
+
+        {/* Menu Items */}
+        <div className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+          {menuItems.map((item, idx) => {
+            const Content = (
+              <div className="w-full px-6 py-5 flex items-center justify-between hover:bg-slate-50 transition-colors cursor-pointer">
+                <div className="flex items-center gap-4">
+                  <div className="bg-slate-50 p-3 rounded-2xl">
+                    <item.icon className="h-5 w-5 text-slate-500" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-bold text-slate-800">{item.label}</p>
+                    <p className="text-[10px] font-bold text-slate-400 tracking-tight">{item.sub}</p>
+                  </div>
+                </div>
+                <ChevronRight className="h-5 w-5 text-slate-300" />
+              </div>
+            );
+
+            return item.path ? (
+              <Link key={idx} to={item.path}>{Content}</Link>
+            ) : (
+              <div key={idx}>{Content}</div>
+            );
+          })}
         </div>
 
         {/* Account Details */}

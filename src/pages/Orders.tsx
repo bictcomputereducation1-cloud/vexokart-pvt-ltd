@@ -2,18 +2,38 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../AuthContext';
 import { Order } from '../types';
-import { Package, Clock, CheckCircle2, Truck, XCircle, ShieldCheck, ChevronRight, ShoppingBag, Download } from 'lucide-react';
+import { Package, Clock, CheckCircle2, Truck, XCircle, ShieldCheck, ChevronRight, ShoppingBag, Download, RotateCcw } from 'lucide-react';
 import { motion } from 'motion/react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { useCart } from '../CartContext';
+import { toast } from 'sonner';
 
 export default function Orders() {
   const { user } = useAuth();
+  const { addToCart } = useCart();
+  const navigate = useNavigate();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) fetchOrders();
   }, [user]);
+
+  const handleReorder = async (order: any) => {
+    try {
+      toast.info('Adding items to cart...');
+      for (const item of order.order_items) {
+        if (item.products) {
+          await addToCart(item.products);
+        }
+      }
+      toast.success('Items added to cart');
+      navigate('/cart');
+    } catch (error) {
+      console.error('Error reordering:', error);
+      toast.error('Failed to add all items to cart');
+    }
+  };
 
   const fetchOrders = async () => {
     try {
@@ -158,11 +178,25 @@ export default function Orders() {
               <div className="px-5 py-4 bg-slate-50/50 border-t border-slate-50 flex justify-between items-center">
                  <div className="flex flex-col">
                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Bill</span>
-                   <span className="text-base font-black italic tracking-tighter">₹{order.total_amount}</span>
+                   <div className="flex items-center gap-2">
+                     <span className="text-base font-black italic tracking-tighter">₹{order.total_amount}</span>
+                     {order.payment_method === 'cod' && (
+                        <span className="text-[8px] font-black uppercase px-2 py-0.5 bg-slate-200 rounded-md text-slate-600">COD</span>
+                     )}
+                   </div>
                  </div>
-                 <button className="flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-primary hover:text-primary/80">
-                   Order Details <ChevronRight className="h-4 w-4" />
-                 </button>
+                 <div className="flex items-center gap-2">
+                   <button 
+                     onClick={() => handleReorder(order)}
+                     className="flex items-center gap-2 bg-slate-900 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all"
+                   >
+                     <RotateCcw className="h-3 w-3" />
+                     Reorder
+                   </button>
+                   <button className="h-10 w-10 flex items-center justify-center text-slate-400 hover:bg-slate-200 rounded-xl transition-colors">
+                     <ChevronRight className="h-5 w-5" />
+                   </button>
+                 </div>
               </div>
             </motion.div>
           ))

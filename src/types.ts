@@ -21,6 +21,7 @@ export interface Product {
   name: string;
   description: string | null;
   price: number;
+  original_price: number;
   category_id: string | null;
   image_url: string | null;
   stock: number;
@@ -77,4 +78,13 @@ export interface OrderItem {
 
 export interface CartItem extends Product {
   quantity: number;
+}
+
+export interface Coupon {
+  id: string;
+  code: string;
+  discount_type: 'percentage' | 'flat';
+  discount_value: number;
+  min_order_amount: number;
+  is_active: boolean;
 }

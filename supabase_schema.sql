@@ -37,6 +37,9 @@ CREATE TABLE orders (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL,
   total_amount DECIMAL(10, 2) NOT NULL,
+  discount_amount DECIMAL(10, 2) DEFAULT 0,
+  coupon_code TEXT,
+  delivery_fee DECIMAL(10, 2) DEFAULT 0,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'packed', 'delivered', 'cancelled')),
   payment_method TEXT CHECK (payment_method IN ('cod', 'online')),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
@@ -100,6 +103,17 @@ CREATE TABLE cart (
   UNIQUE(user_id, product_id)
 );
 
+-- 8. Coupons table
+CREATE TABLE coupons (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  code TEXT UNIQUE NOT NULL,
+  discount_type TEXT NOT NULL CHECK (discount_type IN ('percentage', 'flat')),
+  discount_value DECIMAL(10, 2) NOT NULL,
+  min_order_amount DECIMAL(10, 2) DEFAULT 0,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
 -- RLS (Row Level Security)
 
 -- Users: Users can read their own profile, Admins can read all
@@ -143,6 +157,13 @@ CREATE POLICY "Admins can manage all order items" ON order_items FOR ALL USING (
 -- Cart: Users can manage their own cart
 ALTER TABLE cart ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can manage own cart" ON cart FOR ALL USING (auth.uid() = user_id);
+
+-- Coupons: Everyone can view active coupons, Admins can manage
+ALTER TABLE coupons ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Everyone can view active coupons" ON coupons FOR SELECT USING (is_active = true);
+CREATE POLICY "Admins can manage coupons" ON coupons FOR ALL USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
 
 -- 7. Storage setup for invoices
 -- Note: These typically go into the storage schema, but we can't easily do that here without standard Supabase storage setup.

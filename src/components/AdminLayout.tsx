@@ -8,7 +8,8 @@ import {
   ArrowLeft,
   Settings,
   Users,
-  MapPin
+  MapPin,
+  Ticket
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -24,6 +25,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { icon: Package, label: 'Products', path: '/admin/products' },
     { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
     { icon: Layers, label: 'Categories', path: '/admin/categories' },
+    { icon: Ticket, label: 'Coupons', path: '/admin/coupons' },
   ];
 
   return (

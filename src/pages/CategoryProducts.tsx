@@ -17,9 +17,9 @@ import { toast } from 'sonner';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function CategoryProducts() {
-  const { id } = useParams<{ id: string }>();
+  const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
-  const { addToCart } = useCart();
+  const { addToCart, items } = useCart();
   
   const [products, setProducts] = useState<Product[]>([]);
   const [category, setCategory] = useState<Category | null>(null);
@@ -27,21 +27,49 @@ export default function CategoryProducts() {
   const [filter, setFilter] = useState('All');
 
   useEffect(() => {
-    if (id) {
+    if (identifier) {
       fetchData();
     }
-  }, [id]);
+  }, [identifier]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [categoryRes, productsRes] = await Promise.all([
-        supabase.from('categories').select('*').eq('id', id).single(),
-        supabase.from('products').select('*').eq('category_id', id)
-      ]);
+      // First try to find category by slug, then fallback to ID if it looks like a UUID
+      let categoryData = null;
+      
+      const { data: catBySlug } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('slug', identifier)
+        .single();
+      
+      if (catBySlug) {
+        categoryData = catBySlug;
+      } else {
+        // Check if identifier is a valid UUID before trying to query by ID
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(identifier!)) {
+          const { data: catById } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('id', identifier)
+            .single();
+          categoryData = catById;
+        }
+      }
 
-      if (categoryRes.data) setCategory(categoryRes.data);
-      if (productsRes.data) setProducts(productsRes.data);
+      if (categoryData) {
+        setCategory(categoryData);
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('*')
+          .eq('category_id', categoryData.id);
+        
+        if (productsData) setProducts(productsData);
+      } else {
+        toast.error('Category not found');
+      }
     } catch (err) {
       console.error('Error fetching category products:', err);
       toast.error('Failed to load products');
@@ -78,22 +106,23 @@ export default function CategoryProducts() {
 
   return (
     <div className="bg-slate-50 min-h-screen pb-24">
-      {/* 🔹 HEADER */}
-      <div className="sticky top-0 z-50 bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between">
-        <button 
-          onClick={() => navigate(-1)}
-          className="p-2 -ml-2 text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
-        >
-          <ArrowLeft className="h-6 w-6" />
-        </button>
+      {/* 🔹 CATEGORY HEADER */}
+      <div className="bg-white px-4 py-6 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-slate-900 tracking-tighter">
+            {category?.name}
+          </h1>
+          <p className="text-[10px] font-black uppercase text-emerald-600 tracking-widest mt-1 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+            {products.length} Items Available
+          </p>
+        </div>
         
-        <h1 className="text-lg font-black italic tracking-tighter text-slate-900 absolute left-1/2 -translate-x-1/2">
-          {category?.name}
-        </h1>
-
-        <button className="p-2 -mr-2 text-slate-700 hover:bg-slate-100 rounded-full transition-colors">
-          <Search className="h-6 w-6" />
-        </button>
+        {category?.image_url && (
+          <div className="h-16 w-16 bg-slate-50 rounded-2xl p-2 border border-slate-50 shadow-sm overflow-hidden">
+            <img src={category.image_url} alt="" className="w-full h-full object-contain filter drop-shadow-sm" />
+          </div>
+        )}
       </div>
 
       {/* 🔹 FILTER BAR */}
@@ -162,17 +191,26 @@ export default function CategoryProducts() {
               {/* Price Right */}
               <div className="flex flex-col items-end gap-2 pr-1">
                 <div className="text-right">
-                  <p className="text-sm font-black text-slate-900 leading-none">₹{product.price}</p>
-                  <p className="text-[10px] text-slate-300 line-through font-bold mt-0.5 leading-none">₹{Math.round(product.price * 1.2)}</p>
+                  <p className="text-sm font-black text-[#10b981] leading-none">₹{product.price}</p>
+                  <p className="text-[10px] text-slate-300 line-through font-bold mt-0.5 leading-none">₹{product.original_price || Math.round(product.price * 1.25)}</p>
                 </div>
                 
-                <button
-                  onClick={(e) => handleAddToCart(e, product)}
-                  disabled={product.stock <= 0}
-                  className="bg-white border-2 border-emerald-600 text-emerald-600 h-9 px-6 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-50/50 disabled:opacity-30 disabled:border-slate-200 disabled:text-slate-200"
-                >
-                  ADD
-                </button>
+                {items.some(item => item.id === product.id) ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); navigate('/cart'); }}
+                    className="bg-slate-900 border-2 border-slate-900 text-white h-9 px-4 rounded-xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-lg shadow-slate-100"
+                  >
+                    GO TO
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => handleAddToCart(e, product)}
+                    disabled={product.stock <= 0}
+                    className="bg-white border-2 border-emerald-600 text-emerald-600 h-9 px-6 rounded-xl font-black text-[11px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-50/50 disabled:opacity-30 disabled:border-slate-200 disabled:text-slate-200"
+                  >
+                    ADD
+                  </button>
+                )}
               </div>
             </motion.div>
           ))
@@ -182,7 +220,7 @@ export default function CategoryProducts() {
                 <TrendingUp className="h-10 w-10 text-slate-300 rotate-45" />
              </div>
              <div>
-                <h3 className="text-lg font-black italic tracking-tighter text-slate-800">No products here yet</h3>
+                <h3 className="text-lg font-black italic tracking-tighter text-slate-800">No items found</h3>
                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">We are restocking this section soon</p>
              </div>
              <button 
