@@ -201,9 +201,21 @@ export default function Checkout() {
         theme: {
           color: '#10b981',
         },
+        modal: {
+          ondismiss: function () {
+            console.log("Payment popup closed");
+          },
+          escape: true
+        }
       };
 
       const paymentObject = new window.Razorpay(options);
+      
+      paymentObject.on("payment.failed", function (response: any) {
+        console.log("Payment Failed:", response);
+        toast.error(`Payment Failed: ${response.error.description}`);
+      });
+
       paymentObject.open();
     } catch (error: any) {
       console.error('Payment error:', error);

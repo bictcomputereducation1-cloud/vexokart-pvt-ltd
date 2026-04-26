@@ -28,9 +28,6 @@ async function startServer() {
     return value.trim().replace(/^["']|["']$/g, "").trim();
   };
 
-  const razorpayKeyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY_ID || process.env.VITE_RAZORPAY_KEY);
-  const razorpayKeySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET);
-
   // API Routes
   app.post("/api/payment/order", async (req, res) => {
     try {
@@ -39,6 +36,9 @@ async function startServer() {
       const razorpayKeyId = process.env.RAZORPAY_KEY_ID?.trim();
       const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
       
+      console.log(`[DEBUG] Razorpay Key ID loaded: ${razorpayKeyId ? 'YES (' + razorpayKeyId.slice(0, 4) + '...)' : 'MISSING'}`);
+      console.log(`[DEBUG] Razorpay Key Secret loaded: ${razorpayKeySecret ? 'YES (' + razorpayKeySecret.slice(0, 2) + '...)' : 'MISSING'}`);
+
       if (!razorpayKeyId || !razorpayKeySecret) {
         console.error("Razorpay keys missing in environment variables!");
         return res.status(500).json({ 
