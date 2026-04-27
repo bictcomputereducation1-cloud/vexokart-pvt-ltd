@@ -34,8 +34,8 @@ async function startServer() {
       const { amount, currency = "INR", receipt } = req.body;
       
       const razorpayKeyId = process.env.RAZORPAY_KEY_ID?.trim();
-      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET?.trim();
-      
+      const razorpayKeySecret = (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET)?.trim();
+
       console.log(`[DEBUG] Razorpay Key ID loaded: ${razorpayKeyId ? 'YES (' + razorpayKeyId.slice(0, 4) + '...)' : 'MISSING'}`);
       console.log(`[DEBUG] Razorpay Key Secret loaded: ${razorpayKeySecret ? 'YES (' + razorpayKeySecret.slice(0, 2) + '...)' : 'MISSING'}`);
 
