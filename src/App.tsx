@@ -27,7 +27,14 @@ import AdminOrders from './pages/AdminOrders';
 import AdminCategories from './pages/AdminCategories';
 import AdminCoupons from './pages/AdminCoupons';
 import AdminSettings from './pages/AdminSettings';
+import AdminVendors from './pages/AdminVendors';
+import AdminDeliveryBoys from './pages/AdminDeliveryBoys';
+import VendorDashboard from './pages/VendorDashboard';
+import VendorPrintLabel from './pages/VendorPrintLabel';
+import DeliveryDashboard from './pages/DeliveryDashboard';
 import { AdminLayout } from './components/AdminLayout';
+import { VendorLayout } from './components/VendorLayout';
+import { DeliveryLayout } from './components/DeliveryLayout';
 
 export default function App() {
   return (
@@ -54,11 +61,21 @@ export default function App() {
                 
                 {/* Admin Routes */}
                 <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/vendors" element={<ProtectedRoute adminOnly><AdminLayout><AdminVendors /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/delivery-boys" element={<ProtectedRoute adminOnly><AdminLayout><AdminDeliveryBoys /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminLayout><AdminProducts /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><AdminOrders /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminLayout><AdminCategories /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/coupons" element={<ProtectedRoute adminOnly><AdminLayout><AdminCoupons /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminLayout><AdminSettings /></AdminLayout></ProtectedRoute>} />
+                
+                {/* Vendor Routes */}
+                <Route path="/vendor" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
+                <Route path="/vendor/dashboard" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
+                <Route path="/vendor/print/:id" element={<ProtectedRoute vendorOnly><VendorPrintLabel /></ProtectedRoute>} />
+                
+                {/* Delivery Route */}
+                <Route path="/delivery/dashboard" element={<ProtectedRoute><DeliveryLayout><DeliveryDashboard /></DeliveryLayout></ProtectedRoute>} />
               </Routes>
             </Layout>
           </Router>

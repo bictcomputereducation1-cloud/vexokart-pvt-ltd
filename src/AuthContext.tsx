@@ -8,6 +8,8 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   isAdmin: boolean;
+  isVendor: boolean;
+  isDelivery: boolean;
   signOut: () => Promise<void>;
 }
 
@@ -92,9 +94,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAdmin = profile?.role === 'admin';
+  const isVendor = profile?.role === 'vendor';
+  const isDelivery = profile?.role === 'delivery';
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, isAdmin, isVendor, isDelivery, signOut }}>
       {children}
     </AuthContext.Provider>
   );

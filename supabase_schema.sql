@@ -5,9 +5,28 @@ CREATE TABLE users (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
-  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin')),
+  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'vendor')),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
+
+-- 1.5 Vendors table
+CREATE TABLE vendors (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL UNIQUE,
+  store_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  pincode TEXT NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- RLS for Vendors
+ALTER TABLE vendors ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Everyone can view active vendors" ON vendors FOR SELECT USING (is_active = true);
+CREATE POLICY "Admins can manage vendors" ON vendors FOR ALL USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Vendors can view own details" ON vendors FOR SELECT USING (auth.uid() = user_id);
 
 -- 2. Categories table
 CREATE TABLE categories (
@@ -40,6 +59,7 @@ CREATE TABLE orders (
   discount_amount DECIMAL(10, 2) DEFAULT 0,
   coupon_code TEXT,
   delivery_fee DECIMAL(10, 2) DEFAULT 0,
+  vendor_id UUID REFERENCES users(id) ON DELETE SET NULL,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'packed', 'delivered', 'cancelled')),
   payment_method TEXT CHECK (payment_method IN ('cod', 'online')),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
@@ -137,12 +157,16 @@ CREATE POLICY "Admins can manage products" ON products FOR ALL USING (
   EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
 );
 
--- Orders: Users can view/create own orders, Admins can manage all
+-- Orders: Users can view/create own orders, Admins can manage all, Vendors can manage assigned orders
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own orders" ON orders FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create own orders" ON orders FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Admins can manage all orders" ON orders FOR ALL USING (
   EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Vendors can manage assigned orders" ON orders FOR ALL USING (
+  vendor_id = auth.uid() OR 
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'vendor')
 );
 
 -- Order Items: Users can view own items, Admins can manage all

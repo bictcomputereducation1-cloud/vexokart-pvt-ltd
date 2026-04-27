@@ -5,10 +5,11 @@ import { useAuth } from './AuthContext';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
+  vendorOnly?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false }) => {
-  const { user, isAdmin, loading } = useAuth();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false, vendorOnly = false }) => {
+  const { user, isAdmin, isVendor, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -20,13 +21,17 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminO
   }
 
   if (adminOnly && !isAdmin) {
-    return <AccessDeniedView />;
+    return <AccessDeniedView roleName="administrative" />;
+  }
+
+  if (vendorOnly && !isVendor && !isAdmin) {
+    return <AccessDeniedView roleName="vendor" />;
   }
 
   return <>{children}</>;
 };
 
-const AccessDeniedView = () => {
+const AccessDeniedView = ({ roleName = "administrative" }: { roleName?: string }) => {
   const navigate = useNavigate();
 
   React.useEffect(() => {
@@ -46,7 +51,7 @@ const AccessDeniedView = () => {
         </div>
         <h2 className="text-2xl font-bold text-slate-900 mb-3">Access Denied</h2>
         <p className="text-slate-600 mb-8 leading-relaxed">
-          You don't have the required administrative permissions to view this page. 
+          You don't have the required {roleName} permissions to view this page. 
           <br />
           <span className="text-sm font-medium text-slate-400 mt-2 block">Redirecting to home in 4 seconds...</span>
         </p>

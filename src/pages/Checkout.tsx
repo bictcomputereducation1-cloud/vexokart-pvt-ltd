@@ -107,13 +107,20 @@ export default function Checkout() {
 
   const handleOnlinePayment = async () => {
     if (!selectedAddress) return;
+    
+    const pincode = selectedAddress.pincode;
+    if (!pincode) {
+      toast.error("Pincode is required");
+      return;
+    }
+    
     setLoading(true);
     try {
       // 1. Check for vendor availability first
       const { data: vendor, error: vendorError } = await supabase
         .from('vendors')
         .select('id')
-        .eq('pincode', selectedAddress.pincode)
+        .eq('pincode', pincode)
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
@@ -126,9 +133,8 @@ export default function Checkout() {
       }
 
       if (!vendor) {
-        toast.error('Service not available at this pincode');
         setLoading(false);
-        return;
+        throw new Error("No vendor available in this area");
       }
 
       const res = await loadRazorpay();
@@ -228,13 +234,20 @@ export default function Checkout() {
 
   const handleCodPayment = async () => {
     if (!selectedAddress) return;
+
+    const pincode = selectedAddress.pincode;
+    if (!pincode) {
+      toast.error("Pincode is required");
+      return;
+    }
+
     setLoading(true);
     try {
       // 1. Find assigned vendor
       const { data: vendor, error: vendorError } = await supabase
         .from('vendors')
         .select('id')
-        .eq('pincode', selectedAddress.pincode)
+        .eq('pincode', pincode)
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
@@ -247,27 +260,28 @@ export default function Checkout() {
       }
 
       if (!vendor) {
-        toast.error('Service not available at this pincode');
         setLoading(false);
-        return;
+        throw new Error("No vendor available in this area");
       }
 
       const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
       
+      console.log("Order pincode:", selectedAddress.pincode);
+
       const { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert([{
           user_id: user?.id,
           total_amount: finalAmount,
           vendor_id: vendor.id, // Assign vendor
+          pincode: selectedAddress.pincode,
           discount_amount: couponDiscountValue,
           coupon_code: appliedCoupon?.code,
           delivery_fee: deliveryFee,
           status: 'pending',
           payment_method: 'cod',
           payment_status: 'pending',
-          address: fullAddressText,
-          pincode: selectedAddress.pincode
+          address: fullAddressText
         }])
         .select()
         .single();

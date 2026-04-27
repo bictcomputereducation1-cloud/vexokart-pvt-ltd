@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../AuthContext';
-import { User, Mail, Shield, Calendar, LogOut, ChevronRight, MapPin, Bell, CreditCard, HelpCircle, LayoutDashboard, ShoppingBag } from 'lucide-react';
+import { User, Mail, Shield, Calendar, LogOut, ChevronRight, MapPin, Bell, CreditCard, HelpCircle, LayoutDashboard, ShoppingBag, Store } from 'lucide-react';
 import { motion } from 'motion/react';
 import { AddressSelector } from '../components/AddressSelector';
 import { Link } from 'react-router-dom';
@@ -67,6 +67,23 @@ export default function Profile() {
                 </div>
               </div>
               <ChevronRight className="h-5 w-5 text-primary group-hover:translate-x-1 transition-transform" />
+            </div>
+          </Link>
+        )}
+
+        {(profile?.role === 'vendor') && (
+          <Link to="/vendor">
+            <div className="bg-indigo-600 text-white p-6 rounded-[2rem] shadow-xl flex items-center justify-between group active:scale-[0.98] transition-all">
+              <div className="flex items-center gap-4">
+                <div className="h-12 w-12 bg-white/10 rounded-2xl flex items-center justify-center">
+                  <Store className="h-6 w-6 text-white" />
+                </div>
+                <div className="text-left">
+                  <p className="text-sm font-black uppercase tracking-widest italic">Vendor Portal</p>
+                  <p className="text-[10px] font-bold text-indigo-200 uppercase tracking-tight">Manage Your Orders</p>
+                </div>
+              </div>
+              <ChevronRight className="h-5 w-5 text-white group-hover:translate-x-1 transition-transform" />
             </div>
           </Link>
         )}

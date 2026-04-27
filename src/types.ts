@@ -1,4 +1,4 @@
-export type Role = 'user' | 'admin';
+export type Role = 'user' | 'admin' | 'vendor';
 
 export interface Profile {
   id: string;
@@ -35,7 +35,8 @@ export interface Order {
   user_id: string;
   total_amount: number;
   vendor_id: string | null;
-  status: 'pending' | 'confirmed' | 'packed' | 'delivered' | 'cancelled';
+  delivery_boy_id?: string | null;
+  status: string;
   payment_method: 'cod' | 'online' | null;
   payment_status: 'pending' | 'paid' | 'failed';
   payment_id: string | null;

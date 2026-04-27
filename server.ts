@@ -112,7 +112,27 @@ async function startServer() {
         return res.status(400).json({ success: false, message: "Invalid signature" });
       }
 
-      console.log("Payment verified, now creating order for user:", userId);
+      console.log("Payment verified, finding vendor for pincode:", pincode);
+
+      // Find Vendor
+      const { data: vendor, error: vendorError } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('pincode', pincode)
+        .eq('is_active', true)
+        .limit(1)
+        .maybeSingle();
+
+      if (vendorError || !vendor) {
+        throw new Error("No vendor available in this area");
+      }
+
+      console.log("Found vendor:", vendor.id, "creating order for user:", userId);
+      console.log("Order pincode:", pincode);
+
+      if (!pincode) {
+        throw new Error("Pincode is required");
+      }
 
       // 2. Create order in Supabase
       const { data: newOrder, error: orderError } = await supabase
@@ -120,7 +140,8 @@ async function startServer() {
         .insert([{
           user_id: userId,
           total_amount: amount,
-          vendor_id: vendor_id || null, // Include vendor_id
+          vendor_id: vendor.id,
+          pincode: pincode,
           discount_amount: discount_amount || 0,
           coupon_code: coupon_code || null,
           delivery_fee: delivery_fee || 0,
@@ -158,6 +179,159 @@ async function startServer() {
     } catch (error) {
       console.error("Verification Error:", error);
       res.status(500).json({ error: "Order placement failed after payment" });
+    }
+  });
+
+  app.post("/api/admin/vendors", async (req, res) => {
+    try {
+      const { email, password, storeName, phone, pincode } = req.body;
+
+      if (!email || !password || !storeName || !phone || !pincode) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // 1. Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      let userId = existingUser?.id;
+
+      if (!userId) {
+        // Create auth user using standard signUp
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (authError || !authData.user) {
+          console.error("Auth creation error:", authError);
+          return res.status(400).json({ error: authError?.message || "Failed to create user" });
+        }
+        userId = authData.user.id;
+      } else {
+        // Check if already a vendor
+        const { data: existingVendor } = await supabase
+          .from("vendors")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (existingVendor) {
+          return res.status(400).json({ error: "User is already a vendor" });
+        }
+      }
+
+      // 2. Insert/Update users table as vendor (handling potential trigger race conditions)
+      const { error: userError } = await supabase
+        .from("users")
+        .upsert({
+          id: userId,
+          email: email,
+          name: storeName,
+          role: "vendor",
+        });
+
+      if (userError) {
+        console.error("User table error:", userError);
+        return res.status(500).json({ error: "Failed to create user record" });
+      }
+
+      // 3. Create vendor record
+      const { error: vendorError } = await supabase
+        .from("vendors")
+        .insert({
+          user_id: userId,
+          store_name: storeName,
+          phone: phone,
+          pincode: pincode,
+          is_active: true,
+        });
+
+      if (vendorError) {
+        console.error("Vendor insert error:", vendorError);
+        return res.status(500).json({ error: "Failed to create vendor details" });
+      }
+
+      res.status(201).json({ success: true, message: "Vendor created successfully" });
+    } catch (error: any) {
+      console.error("Vendor creation server error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/admin/delivery-boys", async (req, res) => {
+    try {
+      const { email, password, name, phone, pincode } = req.body;
+
+      if (!email || !password || !name || !phone || !pincode) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      // 1. Check if user already exists
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      let userId = existingUser?.id;
+
+      if (!userId) {
+        const { data: authData, error: authError } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (authError || !authData.user) {
+          console.error("Auth creation error:", authError);
+          return res.status(400).json({ error: authError?.message || "Failed to create user" });
+        }
+        userId = authData.user.id;
+      } else {
+        const { data: existingBoy } = await supabase
+          .from("delivery_boys")
+          .select("id")
+          .eq("user_id", userId)
+          .maybeSingle();
+
+        if (existingBoy) {
+          return res.status(400).json({ error: "User is already a delivery partner" });
+        }
+      }
+
+      // 2. Update users table role
+      await supabase
+        .from("users")
+        .upsert({
+          id: userId,
+          email: email,
+          name: name,
+          role: "delivery", 
+        });
+
+      // 3. Create delivery boy record
+      const { error: dboyError } = await supabase
+        .from("delivery_boys")
+        .insert({
+          user_id: userId,
+          name: name,
+          phone: phone,
+          pincode: pincode,
+          is_active: true,
+        });
+
+      if (dboyError) {
+        console.error("Delivery boy insert error:", dboyError);
+        return res.status(500).json({ error: "Failed to create delivery partner details" });
+      }
+
+      res.status(201).json({ success: true, message: "Delivery partner created successfully" });
+    } catch (error: any) {
+      console.error("Delivery boy creation server error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 

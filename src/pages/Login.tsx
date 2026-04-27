@@ -43,6 +43,38 @@ export default function Login() {
       }
       
       toast.success('Logged in successfully!');
+
+      if (data.user) {
+        // First check if the user is a vendor
+        const { data: vendorData } = await supabase
+          .from('vendors')
+          .select('*')
+          .eq('user_id', data.user.id)
+          .maybeSingle();
+
+        if (vendorData) {
+          navigate('/vendor');
+          return;
+        }
+
+        // Check if admin
+        const { data: userData } = await supabase
+          .from('users')
+          .select('role')
+          .eq('id', data.user.id)
+          .maybeSingle();
+
+        if (userData?.role === 'admin') {
+          navigate('/admin');
+          return;
+        }
+
+        if (userData?.role === 'delivery') {
+          navigate('/delivery/dashboard');
+          return;
+        }
+      }
+
       navigate('/');
     } catch (err: any) {
       console.error("Login error:", err);
