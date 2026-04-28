@@ -34,6 +34,13 @@ export default function DeliveryDashboard() {
       const deliveryBoyId = dboy?.id || profile?.id;
 
       // 2. Fetch orders assigned to this delivery boy
+      // Only query if we have a potentially valid UUID
+      if (!deliveryBoyId || deliveryBoyId.length < 32) {
+        console.warn('No valid delivery boy ID found');
+        setOrders([]);
+        return;
+      }
+
       const { data: orders, error } = await supabase
         .from('orders')
         .select('*')

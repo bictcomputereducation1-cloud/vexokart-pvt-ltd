@@ -45,9 +45,9 @@ export default function VendorDashboard() {
     // We don't initialize here to avoid autoplay blocks.
     // Instead, we'll try to play when the order arrives.
 
-    if (!vendorData?.id) return;
+    if (!vendorData?.service_area_id) return;
 
-    // Subscribe to new orders
+    // Subscribe to new orders in this vendor's area
     const channel = supabase
       .channel('vendor-orders')
       .on(
@@ -56,10 +56,10 @@ export default function VendorDashboard() {
           event: 'INSERT',
           schema: 'public',
           table: 'orders',
-          filter: `vendor_id=eq.${vendorData.id}`
+          filter: `service_area_id=eq.${vendorData.service_area_id}`
         },
         (payload) => {
-          console.log('New order received:', payload.new);
+          console.log('New area order received:', payload.new);
           handleNewOrder(payload.new as Order);
         }
       )
@@ -122,12 +122,22 @@ export default function VendorDashboard() {
       }
 
       setVendorData(vendor);
+      
+      // 2. Fetch orders in this vendor's service area
+      // Check if IDs are valid UUIDs/present before querying
+      if (!vendor.service_area_id || !vendor.id) {
+        console.warn('Vendor missing critical IDs:', { service_area_id: vendor.service_area_id, id: vendor.id });
+        setOrders([]);
+        return;
+      }
 
-      // 2. Fetch orders assigned to this vendor_id
+      console.log('Vendor Service Area ID:', vendor.service_area_id);
+
       const { data: orders, error } = await supabase
         .from('orders')
-        .select('*')
-        .eq('vendor_id', vendor.id)
+        .select('*, users(name, email)')
+        .eq('service_area_id', vendor.service_area_id)
+        .or(`vendor_id.is.null,vendor_id.eq.${vendor.id}`)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -142,30 +152,35 @@ export default function VendorDashboard() {
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
+      const updateData: any = { status: newStatus };
+      
+      // Auto-assign vendor_id if they accept it and it's not already set
+      if (newStatus === 'accepted' && vendorData?.id) {
+        updateData.vendor_id = vendorData.id;
+      }
+
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', orderId);
 
       if (error) throw error;
       
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus as any } : o));
+      setOrders(orders.map(o => o.id === orderId ? { ...o, ...updateData } : o));
+      toast.success(`Order ${newStatus}`);
     } catch (error) {
       console.error('Error updating status:', error);
-      alert('Failed to update status');
+      toast.error('Failed to update status');
     }
   };
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'placed':
-      case 'pending': return 'bg-amber-100 text-amber-800';
-      case 'accepted':
-      case 'confirmed': 
-      case 'packed': return 'bg-blue-100 text-blue-800';
-      case 'ready_for_delivery':
-      case 'picked': return 'bg-purple-100 text-purple-800';
-      case 'out_for_delivery': return 'bg-indigo-100 text-indigo-800';
+      case 'placed': return 'bg-amber-100 text-amber-800';
+      case 'accepted': return 'bg-blue-100 text-blue-800';
+      case 'packed': return 'bg-indigo-100 text-indigo-800';
+      case 'ready_for_delivery': return 'bg-purple-100 text-purple-800';
+      case 'out_for_delivery': return 'bg-sky-100 text-sky-800';
       case 'delivered': return 'bg-emerald-100 text-emerald-800';
       case 'rejected':
       case 'cancelled': return 'bg-red-100 text-red-800';
@@ -173,8 +188,8 @@ export default function VendorDashboard() {
     }
   };
 
-  const pendingCount = orders.filter(o => ['pending', 'placed'].includes(o.status)).length;
-  const activeCount = orders.filter(o => ['accepted', 'confirmed', 'packed', 'ready_for_delivery', 'picked', 'out_for_delivery'].includes(o.status)).length;
+  const pendingCount = orders.filter(o => o.status === 'placed').length;
+  const activeCount = orders.filter(o => ['accepted', 'packed', 'ready_for_delivery'].includes(o.status)).length;
   const deliveredCount = orders.filter(o => o.status === 'delivered').length;
 
   return (
@@ -301,7 +316,10 @@ export default function VendorDashboard() {
                   }`}
                 >
                   <td className="p-4 font-mono text-sm uppercase">#{order.id.split('-')[0]}</td>
-                  <td className="p-4 font-medium text-slate-900 text-xs font-mono">{order.user_id}</td>
+                  <td className="p-4">
+                    <div className="font-medium text-slate-900">{(order as any).users?.name || 'Customer'}</div>
+                    <div className="text-[10px] text-slate-400 font-mono">{(order as any).users?.email || order.user_id.split('-')[0]}</div>
+                  </td>
                   <td className="p-4">
                     <div className="flex items-center gap-1 text-sm text-slate-600">
                       <MapPin className="h-3 w-3" />
@@ -315,23 +333,17 @@ export default function VendorDashboard() {
                     </span>
                   </td>
                   <td className="p-4 text-right">
-                    {(order.status === 'pending' || order.status === 'placed') && (
+                    {order.status === 'placed' && (
                       <div className="flex gap-2 justify-end">
                         <button 
                           onClick={() => updateOrderStatus(order.id, 'accepted')}
-                          className="px-3 py-1 bg-blue-50 text-blue-600 rounded flex items-center gap-1 text-sm font-medium hover:bg-blue-100"
+                          className="px-3 py-1 bg-black text-primary rounded flex items-center gap-1 text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
                         >
-                          Accept
-                        </button>
-                        <button 
-                          onClick={() => updateOrderStatus(order.id, 'rejected')}
-                          className="px-3 py-1 bg-red-50 text-red-600 rounded flex items-center gap-1 text-sm font-medium hover:bg-red-100"
-                        >
-                          Reject
+                          Accept Order
                         </button>
                       </div>
                     )}
-                    {(order.status === 'accepted' || order.status === 'confirmed') && (
+                    {order.status === 'accepted' && (
                       <div className="flex gap-2 justify-end">
                         <button 
                           onClick={() => navigate(`/vendor/print/${order.id}`)}
@@ -351,16 +363,22 @@ export default function VendorDashboard() {
                       <div className="flex gap-2 justify-end">
                         <button 
                           onClick={() => navigate(`/vendor/print/${order.id}`)}
-                          className="px-3 py-1 bg-slate-50 text-slate-600 border border-slate-200 rounded flex items-center gap-1 text-sm font-medium hover:bg-slate-100"
+                          className="h-8 w-8 bg-slate-50 text-slate-400 rounded-lg flex items-center justify-center hover:text-slate-900 transition-colors"
+                          title="Print Label"
                         >
-                          <Printer className="h-4 w-4" /> Print Label
+                          <Printer className="h-4 w-4" />
                         </button>
                         <button 
                           onClick={() => updateOrderStatus(order.id, 'ready_for_delivery')}
-                          className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded flex items-center gap-1 text-sm font-medium hover:bg-emerald-100"
+                          className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded flex items-center gap-1 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-colors"
                         >
-                          Ready for Delivery
+                          Dispatch Ready
                         </button>
+                      </div>
+                    )}
+                    {(order.status === 'ready_for_delivery' || order.status === 'picked' || order.status === 'out_for_delivery') && (
+                      <div className="flex justify-end">
+                         <span className="text-[10px] font-black uppercase text-slate-400 bg-slate-50 px-2 py-1 rounded">Handoff Complete</span>
                       </div>
                     )}
                   </td>

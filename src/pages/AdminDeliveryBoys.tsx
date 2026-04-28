@@ -1,61 +1,73 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Truck, UserPlus, MapPin, CheckCircle, XCircle } from 'lucide-react';
+import { ServiceableArea } from '../types';
+import { Truck, UserPlus, MapPin, CheckCircle, XCircle, Loader2, X, Bike, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AdminDeliveryBoys() {
-  const [deliveryBoys, setDeliveryBoys] = useState<any[]>([]);
+  const [boys, setBoys] = useState<any[]>([]);
+  const [areas, setAreas] = useState<ServiceableArea[]>([]);
   const [loading, setLoading] = useState(true);
-
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newPhone, setNewPhone] = useState('');
-  const [newPincode, setNewPincode] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const [formData, setFormData] = useState({
+    email: '',
+    full_name: '',
+    phone: '',
+    vehicle_type: 'BIKE',
+    service_area_id: '',
+    is_active: true
+  });
 
   useEffect(() => {
-    fetchDeliveryBoys();
+    fetchData();
   }, []);
 
-  const handleAddDeliveryBoy = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEmail || !newPassword || !newName || !newPhone || !newPincode) {
-      return toast.error('Please fill all fields');
+  const fetchData = async () => {
+    try {
+      const [boysRes, areasRes] = await Promise.all([
+        supabase.from('delivery_boys').select('*, service_area:serviceable_areas(city, pincode)').order('created_at', { ascending: false }),
+        supabase.from('serviceable_areas').select('*').eq('is_active', true).order('city')
+      ]);
+      
+      setBoys(boysRes.data || []);
+      setAreas(areasRes.data || []);
+    } catch (err) {
+      toast.error('Failed to load data');
+    } finally {
+      setLoading(false);
     }
+  };
 
+  const handleAddBoy = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSaving(true);
     try {
       const response = await fetch('/api/admin/delivery-boys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: newEmail,
-          password: newPassword,
-          name: newName,
-          phone: newPhone,
-          pincode: newPincode
+          email: formData.email,
+          password: 'TemporaryPassword123!', 
+          name: formData.full_name,
+          phone: formData.phone,
+          service_area_id: formData.service_area_id,
+          vehicle_type: formData.vehicle_type
         })
       });
 
-      const data = await response.json();
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Registration failed');
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add delivery partner');
-      }
-
-      toast.success('Delivery partner added successfully');
+      toast.success('Delivery partner registered and account created');
       setIsAddModalOpen(false);
-      
-      // Reset form
-      setNewEmail('');
-      setNewPassword('');
-      setNewName('');
-      setNewPhone('');
-      setNewPincode('');
-      
-      fetchDeliveryBoys();
+      fetchData();
+      setFormData({ email: '', full_name: '', phone: '', vehicle_type: 'BIKE', service_area_id: '', is_active: true });
     } catch (err: any) {
-      toast.error(err.message || 'Failed to add delivery partner');
+      toast.error(err.message || 'Registration failed');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -69,180 +81,166 @@ export default function AdminDeliveryBoys() {
       toast.error('Failed to update status');
     } else {
       toast.success('Status updated');
-      setDeliveryBoys(deliveryBoys.map(v => v.id === id ? { ...v, is_active: !currentStatus } : v));
+      setBoys(boys.map(b => b.id === id ? { ...b, is_active: !currentStatus } : b));
     }
   };
 
-  const fetchDeliveryBoys = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('delivery_boys')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error(error);
-      toast.error('Failed to load delivery partners');
-    } else {
-      setDeliveryBoys(data || []);
-    }
-    setLoading(false);
-  };
+  if (loading) return <div className="flex items-center justify-center min-h-[400px]"><Loader2 className="animate-spin text-primary" /></div>;
 
   return (
-    <div>
+    <div className="p-6">
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Delivery Partners</h1>
-          <p className="text-slate-500">Manage delivery boys and assigned areas</p>
+          <h1 className="text-3xl font-black tracking-tight text-slate-900 italic uppercase">Fleet Management</h1>
+          <p className="text-slate-500 font-medium">Control your delivery partners and zones</p>
         </div>
         <button 
           onClick={() => setIsAddModalOpen(true)}
-          className="bg-primary hover:bg-primary/90 text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 transition-colors"
+          className="bg-primary text-black px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-black hover:text-primary transition-all shadow-xl shadow-primary/20"
         >
-          <UserPlus className="h-4 w-4" />
-          Add Delivery Partner
+          <UserPlus className="h-5 w-5" /> Add Delivery Partner
         </button>
       </div>
 
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/50 z-50 flex flex-col items-center justify-center p-4">
-           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl">
-              <h2 className="text-xl font-bold text-slate-900 mb-6">Create New Delivery Partner</h2>
-              <form onSubmit={handleAddDeliveryBoy} className="space-y-4">
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                    <input
-                      type="email"
-                      value={newEmail}
-                      onChange={(e) => setNewEmail(e.target.value)}
-                      className="w-full rounded-xl border-slate-200 border p-3 bg-slate-50 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="delivery@example.com"
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                    <input
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      className="w-full rounded-xl border-slate-200 border p-3 bg-slate-50 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="Min 6 characters"
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                    <input 
-                      type="text" 
-                      value={newName}
-                      onChange={(e) => setNewName(e.target.value)}
-                      className="w-full rounded-xl border-slate-200 border p-3 bg-slate-50 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="e.g. John Doe"
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number</label>
-                    <input 
-                      type="text" 
-                      value={newPhone}
-                      onChange={(e) => setNewPhone(e.target.value)}
-                      className="w-full rounded-xl border-slate-200 border p-3 bg-slate-50 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="+91..."
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Assigned Pincode</label>
-                    <input 
-                      type="text" 
-                      value={newPincode}
-                      onChange={(e) => setNewPincode(e.target.value)}
-                      className="w-full rounded-xl border-slate-200 border p-3 bg-slate-50 text-sm focus:ring-2 focus:ring-primary focus:border-primary"
-                      placeholder="e.g. 500001"
-                    />
-                 </div>
-                 <div className="flex gap-3 pt-4">
-                    <button 
-                      type="button" 
-                      onClick={() => setIsAddModalOpen(false)}
-                      className="flex-1 bg-slate-100 text-slate-700 font-bold py-3 rounded-xl hover:bg-slate-200"
-                    >
-                      Cancel
-                    </button>
-                    <button 
-                      type="submit" 
-                      className="flex-1 bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary/90 shadow-md shadow-primary/20"
-                    >
-                      Create Account
-                    </button>
-                 </div>
-              </form>
-           </div>
-        </div>
-      )}
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading delivery partners...</div>
-        ) : deliveryBoys.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 flex flex-col items-center">
-            <Truck className="h-12 w-12 mb-4 text-slate-300" />
-            <h3 className="text-lg font-medium text-slate-900 mb-1">No Delivery Partners Found</h3>
-            <p className="max-w-md mx-auto">There are no delivery partners assigned yet. Add a partner and assign them to a pincode.</p>
-          </div>
-        ) : (
+      <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 text-sm font-medium text-slate-500">
-                <th className="p-4 py-3">Name</th>
-                <th className="p-4 py-3">User ID</th>
-                <th className="p-4 py-3">Assigned Area</th>
-                <th className="p-4 py-3">Status</th>
-                <th className="p-4 py-3 text-right">Actions</th>
+              <tr className="bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-400">
+                <th className="p-6">Partner Name</th>
+                <th className="p-6">Vehicle</th>
+                <th className="p-6">Delivery Zone</th>
+                <th className="p-6">Status</th>
+                <th className="p-6 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {deliveryBoys.map((boy) => (
-                <tr key={boy.id} className="hover:bg-slate-50/50 transition-colors">
-                  <td className="p-4">
-                    <div className="font-medium text-slate-900">
-                       {boy.name}
-                    </div>
-                    <div className="text-slate-500 text-sm mt-0.5">{boy.phone}</div>
-                  </td>
-                  <td className="p-4 text-slate-600 font-mono text-xs">
-                    {boy.user_id}
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-1 text-sm text-slate-600 font-mono">
-                      <MapPin className="h-3 w-3" />
-                      {boy.pincode}
+            <tbody className="divide-y divide-slate-50">
+              {boys.map((boy) => (
+                <tr key={boy.id} className="hover:bg-slate-50/50 transition-colors group">
+                  <td className="p-6">
+                    <div className="flex items-center gap-4">
+                      <div className="h-12 w-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-primary group-hover:text-black transition-colors">
+                        <Truck className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <p className="font-black text-slate-900 leading-tight">{boy.full_name}</p>
+                        <p className="text-[10px] font-black text-slate-400 mt-1">{boy.phone}</p>
+                      </div>
                     </div>
                   </td>
-                  <td className="p-4">
+                  <td className="p-6">
+                    <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight">
+                        {boy.vehicle_type}
+                    </span>
+                  </td>
+                  <td className="p-6">
+                    {boy.service_area ? (
+                      <div>
+                        <div className="flex items-center gap-1 font-black text-sm text-slate-700">
+                          <MapPin className="h-3 w-3 text-primary" /> {boy.service_area.city}
+                        </div>
+                        <p className="text-[10px] font-black text-slate-400 ml-4">{boy.service_area.pincode}</p>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-black uppercase text-red-400 bg-red-50 px-2 py-1 rounded-lg">No Zone</span>
+                    )}
+                  </td>
+                  <td className="p-6">
                     {boy.is_active ? (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-600">
-                        <CheckCircle className="h-3 w-3" /> Active
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-emerald-50 text-emerald-600">
+                        <CheckCircle className="h-3 w-3" /> Ready
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                        <XCircle className="h-3 w-3" /> Inactive
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-[10px] font-black uppercase bg-slate-100 text-slate-400">
+                        <XCircle className="h-3 w-3" /> Offline
                       </span>
                     )}
                   </td>
-                  <td className="p-4 text-right">
+                  <td className="p-6 text-right">
                     <button 
                       onClick={() => toggleStatus(boy.id, boy.is_active)}
-                      className={`text-sm font-medium ${boy.is_active ? 'text-red-600 hover:text-red-700' : 'text-emerald-600 hover:text-emerald-700'}`}
+                      className={`text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl transition-all ${boy.is_active ? 'bg-red-50 text-red-500 hover:bg-red-500 hover:text-white' : 'bg-emerald-50 text-emerald-500 hover:bg-emerald-500 hover:text-white'}`}
                     >
-                      {boy.is_active ? 'Deactivate' : 'Activate'}
+                      {boy.is_active ? 'Suspend' : 'Activate'}
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
+        </div>
       </div>
+
+      {isAddModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-black tracking-tight italic uppercase">New Fleet Entry</h2>
+              <button onClick={() => setIsAddModalOpen(false)} className="p-2 bg-slate-50 rounded-xl"><X className="h-5 w-5" /></button>
+            </div>
+            
+            <form onSubmit={handleAddBoy} className="space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Full Name</label>
+                <input 
+                  required
+                  value={formData.full_name}
+                  onChange={e => setFormData({...formData, full_name: e.target.value})}
+                  className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
+                  placeholder="e.g. Rahul Kumar"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Phone</label>
+                  <input 
+                    required
+                    value={formData.phone}
+                    onChange={e => setFormData({...formData, phone: e.target.value})}
+                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Vehicle</label>
+                  <select 
+                    value={formData.vehicle_type}
+                    onChange={e => setFormData({...formData, vehicle_type: e.target.value})}
+                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none"
+                  >
+                    <option value="BIKE">BIKE</option>
+                    <option value="SCOOTER">SCOOTER</option>
+                    <option value="CYCLE">CYCLE</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Assigned Delivery Zone</label>
+                <select 
+                  required
+                  value={formData.service_area_id}
+                  onChange={e => setFormData({...formData, service_area_id: e.target.value})}
+                  className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
+                >
+                  <option value="">Select Target Area</option>
+                  {areas.map(area => (
+                    <option key={area.id} value={area.id}>{area.city} ({area.pincode})</option>
+                  ))}
+                </select>
+              </div>
+
+              <button 
+                type="submit"
+                disabled={saving}
+                className="w-full bg-black text-primary h-14 rounded-2xl font-black text-sm uppercase tracking-widest mt-4 flex items-center justify-center gap-2 shadow-xl shadow-primary/20"
+              >
+                {saving ? <Loader2 className="animate-spin" /> : <><Save className="h-5 w-5" /> Enroll Partner</>}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

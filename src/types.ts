@@ -36,6 +36,7 @@ export interface Order {
   user_id: string;
   total_amount: number;
   vendor_id: string | null;
+  service_area_id: string | null;
   delivery_boy_id?: string | null;
   status: string;
   payment_method: 'cod' | 'online' | null;
@@ -55,10 +56,11 @@ export interface Order {
 
 export interface Vendor {
   id: string;
-  name: string;
+  user_id?: string;
+  store_name: string;
   email: string;
   phone: string;
-  pincode: string;
+  service_area_id: string | null;
   is_active: boolean;
   created_at: string;
 }
@@ -115,5 +117,16 @@ export interface Subcategory {
   category_id: string;
   name: string;
   image_url: string | null;
+  slug: string;
+  created_at: string;
+}
+
+export interface Banner {
+  id: string;
+  title: string | null;
+  image_url: string;
+  link_url: string | null;
+  is_active: boolean;
+  display_order: number;
   created_at: string;
 }

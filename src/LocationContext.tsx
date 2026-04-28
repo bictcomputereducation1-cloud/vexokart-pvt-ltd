@@ -8,6 +8,7 @@ interface LocationContextType {
   address: string | null;
   latitude: number | null;
   longitude: number | null;
+  serviceAreaId: string | null;
   isServiceable: boolean;
   setLocation: (pincode: string, city: string, address: string, latitude?: number | null, longitude?: number | null) => Promise<boolean>;
   isLoading: boolean;
@@ -38,6 +39,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [address, setAddress] = useState<string | null>(localStorage.getItem('vexo_address'));
   const [latitude, setLatitude] = useState<number | null>(localStorage.getItem('vexo_lat') ? Number(localStorage.getItem('vexo_lat')) : null);
   const [longitude, setLongitude] = useState<number | null>(localStorage.getItem('vexo_lng') ? Number(localStorage.getItem('vexo_lng')) : null);
+  const [serviceAreaId, setServiceAreaId] = useState<string | null>(localStorage.getItem('vexo_area_id'));
   const [isServiceable, setIsServiceable] = useState<boolean>(localStorage.getItem('vexo_serviceable') !== 'false');
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -98,6 +100,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setLocation = async (newPincode: string, newCity: string, newAddress: string, lat?: number | null, lng?: number | null) => {
     // Check serviceability
     let serviceable = false;
+    let areaId: string | null = null;
     try {
       // 1. Try pincode match first
       const { data: areaByPincode } = await supabase
@@ -109,6 +112,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (areaByPincode) {
         serviceable = true;
+        areaId = areaByPincode.id;
       } else if (lat && lng) {
         // 2. Try nearby check if we have lat/lng
         const { data: allAreas } = await supabase
@@ -123,6 +127,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               const dist = calculateDistance(lat, lng, area.latitude, area.longitude);
               if (dist <= area.radius_km) {
                 serviceable = true;
+                areaId = area.id;
                 break;
               }
             }
@@ -140,6 +145,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setAddress(newAddress);
     setLatitude(lat || null);
     setLongitude(lng || null);
+    setServiceAreaId(areaId);
     setIsServiceable(serviceable);
 
     localStorage.setItem('vexo_pincode', newPincode);
@@ -147,6 +153,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('vexo_address', newAddress);
     if (lat) localStorage.setItem('vexo_lat', lat.toString());
     if (lng) localStorage.setItem('vexo_lng', lng.toString());
+    if (areaId) localStorage.setItem('vexo_area_id', areaId);
     localStorage.setItem('vexo_serviceable', serviceable.toString());
 
     return serviceable;
@@ -159,6 +166,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       address, 
       latitude, 
       longitude, 
+      serviceAreaId,
       isServiceable, 
       setLocation, 
       isLoading, 

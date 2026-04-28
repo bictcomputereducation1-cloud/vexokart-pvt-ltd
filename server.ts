@@ -96,7 +96,8 @@ async function startServer() {
         discount_amount,
         coupon_code,
         delivery_fee,
-        vendor_id, // New field
+        vendor_id, 
+        service_area_id,
         latitude,
         longitude
       } = req.body;
@@ -114,38 +115,19 @@ async function startServer() {
         return res.status(400).json({ success: false, message: "Invalid signature" });
       }
 
-      console.log("Payment verified, finding vendor for pincode:", pincode);
-
-      // Find Vendor
-      const { data: vendor, error: vendorError } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('pincode', pincode)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (vendorError || !vendor) {
-        throw new Error("No vendor available in this area");
-      }
-
-      console.log("Found vendor:", vendor.id, "creating order for user:", userId);
-      console.log("Order pincode:", pincode);
-
-      if (!pincode) {
-        throw new Error("Pincode is required");
-      }
+      console.log("Payment verified for area:", service_area_id);
 
       // 2. Create order in Supabase
       const orderEntry: any = {
         user_id: userId,
         total_amount: amount,
-        vendor_id: vendor.id,
+        vendor_id: vendor_id || null,
+        service_area_id: service_area_id,
         pincode: pincode,
         discount_amount: discount_amount || 0,
         coupon_code: coupon_code || null,
         delivery_fee: delivery_fee || 0,
-        status: 'confirmed',
+        status: 'placed',
         payment_method: 'online',
         payment_status: 'paid',
         payment_id: razorpay_payment_id,
@@ -201,9 +183,9 @@ async function startServer() {
 
   app.post("/api/admin/vendors", async (req, res) => {
     try {
-      const { email, password, storeName, phone, pincode } = req.body;
+      const { email, password, storeName, phone, service_area_id } = req.body;
 
-      if (!email || !password || !storeName || !phone || !pincode) {
+      if (!email || !password || !storeName || !phone || !service_area_id) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -263,7 +245,7 @@ async function startServer() {
           user_id: userId,
           store_name: storeName,
           phone: phone,
-          pincode: pincode,
+          service_area_id: service_area_id,
           is_active: true,
         });
 
@@ -281,9 +263,9 @@ async function startServer() {
 
   app.post("/api/admin/delivery-boys", async (req, res) => {
     try {
-      const { email, password, name, phone, pincode } = req.body;
+      const { email, password, name, phone, service_area_id } = req.body;
 
-      if (!email || !password || !name || !phone || !pincode) {
+      if (!email || !password || !name || !phone || !service_area_id) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -334,9 +316,10 @@ async function startServer() {
         .from("delivery_boys")
         .insert({
           user_id: userId,
-          name: name,
+          full_name: name,
+          email: email,
           phone: phone,
-          pincode: pincode,
+          service_area_id: service_area_id,
           is_active: true,
         });
 

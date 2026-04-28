@@ -53,6 +53,7 @@ export default function Checkout() {
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [vendorLoading, setVendorLoading] = useState(false);
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean | null>(null);
+  const [targetAreaId, setTargetAreaId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE' | null>(null);
   const navigate = useNavigate();
 
@@ -65,10 +66,29 @@ export default function Checkout() {
   const checkServiceability = async (pincode: string) => {
     setVendorLoading(true);
     try {
+      // 1. Find the service area first
+      const { data: area, error: areaError } = await supabase
+        .from('serviceable_areas')
+        .select('id')
+        .eq('pincode', pincode)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (areaError) throw areaError;
+
+      if (!area) {
+        setIsPincodeServiceable(false);
+        setTargetAreaId(null);
+        return;
+      }
+
+      setTargetAreaId(area.id);
+
+      // 2. Check for active vendors in this area
       const { data: vendor, error } = await supabase
         .from('vendors')
         .select('id')
-        .eq('pincode', pincode)
+        .eq('service_area_id', area.id)
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
@@ -78,6 +98,7 @@ export default function Checkout() {
     } catch (error) {
       console.error('Error checking serviceability:', error);
       setIsPincodeServiceable(null);
+      setTargetAreaId(null);
     } finally {
       setVendorLoading(false);
     }
@@ -118,11 +139,15 @@ export default function Checkout() {
     
     setLoading(true);
     try {
-      // 1. Check for vendor availability first
+      // 1. Check for area and vendor availability
+      if (!targetAreaId) {
+        throw new Error("Service area not identified");
+      }
+
       const { data: vendor, error: vendorError } = await supabase
         .from('vendors')
         .select('id')
-        .eq('pincode', pincode)
+        .eq('service_area_id', targetAreaId)
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
@@ -132,11 +157,6 @@ export default function Checkout() {
         toast.error('Could not verify service availability');
         setLoading(false);
         return;
-      }
-
-      if (!vendor) {
-        setLoading(false);
-        throw new Error("No vendor available in this area");
       }
 
       const res = await loadRazorpay();
@@ -185,10 +205,11 @@ export default function Checkout() {
               pincode: selectedAddress.pincode,
               latitude: selectedAddress.latitude,
               longitude: selectedAddress.longitude,
+              service_area_id: targetAreaId,
               discount_amount: couponDiscountValue,
               coupon_code: appliedCoupon?.code,
               delivery_fee: deliveryFee,
-              vendor_id: vendor.id // Pass the found vendor_id
+              vendor_id: vendor?.id || null // Pass the found vendor_id
             });
 
             if (verifyData.success) {
@@ -247,11 +268,15 @@ export default function Checkout() {
 
     setLoading(true);
     try {
-      // 1. Find assigned vendor
+      // 1. Find assigned vendor for this area
+      if (!targetAreaId) {
+        throw new Error("No service area identified for this pincode");
+      }
+
       const { data: vendor, error: vendorError } = await supabase
         .from('vendors')
         .select('id')
-        .eq('pincode', pincode)
+        .eq('service_area_id', targetAreaId)
         .eq('is_active', true)
         .limit(1)
         .maybeSingle();
@@ -263,26 +288,20 @@ export default function Checkout() {
         return;
       }
 
-      if (!vendor) {
-        setLoading(false);
-        throw new Error("No vendor available in this area");
-      }
-
       const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
       
-      console.log("Order pincode:", selectedAddress.pincode);
-
       const { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert([{
           user_id: user?.id,
           total_amount: finalAmount,
-          vendor_id: vendor.id, // Assign vendor
+          vendor_id: vendor?.id || null, // Optional if no vendor yet, but area is served
+          service_area_id: targetAreaId,
           pincode: selectedAddress.pincode,
           discount_amount: couponDiscountValue,
           coupon_code: appliedCoupon?.code,
           delivery_fee: deliveryFee,
-          status: 'pending',
+          status: 'placed',
           payment_method: 'cod',
           payment_status: 'pending',
           address: fullAddressText,

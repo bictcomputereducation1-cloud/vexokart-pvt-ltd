@@ -25,10 +25,13 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminProducts from './pages/AdminProducts';
 import AdminOrders from './pages/AdminOrders';
 import AdminCategories from './pages/AdminCategories';
+import AdminSubcategories from './pages/AdminSubcategories';
 import AdminCoupons from './pages/AdminCoupons';
 import AdminSettings from './pages/AdminSettings';
 import AdminVendors from './pages/AdminVendors';
 import AdminDeliveryBoys from './pages/AdminDeliveryBoys';
+import AdminAreas from './pages/AdminAreas';
+import AdminBanners from './pages/AdminBanners';
 import VendorDashboard from './pages/VendorDashboard';
 import VendorPrintLabel from './pages/VendorPrintLabel';
 import DeliveryDashboard from './pages/DeliveryDashboard';
@@ -63,9 +66,12 @@ export default function App() {
                 <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/vendors" element={<ProtectedRoute adminOnly><AdminLayout><AdminVendors /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/delivery-boys" element={<ProtectedRoute adminOnly><AdminLayout><AdminDeliveryBoys /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/areas" element={<ProtectedRoute adminOnly><AdminLayout><AdminAreas /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/banners" element={<ProtectedRoute adminOnly><AdminLayout><AdminBanners /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminLayout><AdminProducts /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><AdminOrders /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminLayout><AdminCategories /></AdminLayout></ProtectedRoute>} />
+                <Route path="/admin/subcategories" element={<ProtectedRoute adminOnly><AdminLayout><AdminSubcategories /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/coupons" element={<ProtectedRoute adminOnly><AdminLayout><AdminCoupons /></AdminLayout></ProtectedRoute>} />
                 <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminLayout><AdminSettings /></AdminLayout></ProtectedRoute>} />
                 

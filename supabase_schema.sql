@@ -15,9 +15,31 @@ CREATE TABLE vendors (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   store_name TEXT NOT NULL,
   phone TEXT NOT NULL,
-  pincode TEXT NOT NULL,
+  service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 1.6 Delivery Boys table
+CREATE TABLE delivery_boys (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE UNIQUE,
+  full_name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT NOT NULL,
+  vehicle_type TEXT CHECK (vehicle_type IN ('BIKE', 'SCOOTER', 'CYCLE')),
+  service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- RLS for delivery_boys
+ALTER TABLE delivery_boys ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins can manage delivery boys" ON delivery_boys FOR ALL USING (
+  EXISTS (SELECT 1 FROM users WHERE id = auth.uid() AND role = 'admin')
+);
+CREATE POLICY "Delivery boys can view own profile" ON delivery_boys FOR SELECT USING (
+  auth.uid() = user_id
 );
 
 -- RLS for Vendors
@@ -43,6 +65,18 @@ CREATE TABLE subcategories (
   category_id UUID REFERENCES categories(id) ON DELETE CASCADE NOT NULL,
   name TEXT NOT NULL,
   image_url TEXT,
+  slug TEXT UNIQUE NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- 2.6 Banners table
+CREATE TABLE banners (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT,
+  image_url TEXT NOT NULL,
+  link_url TEXT,
+  is_active BOOLEAN DEFAULT true,
+  display_order INTEGER DEFAULT 0,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
@@ -70,7 +104,8 @@ CREATE TABLE orders (
   coupon_code TEXT,
   delivery_fee DECIMAL(10, 2) DEFAULT 0,
   vendor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'packed', 'delivered', 'cancelled')),
+  service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'placed' CHECK (status IN ('placed', 'accepted', 'packed', 'ready_for_delivery', 'picked', 'out_for_delivery', 'delivered', 'cancelled', 'rejected')),
   payment_method TEXT CHECK (payment_method IN ('cod', 'online')),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
   payment_id TEXT,

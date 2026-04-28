@@ -10,7 +10,10 @@ import {
   Users,
   MapPin,
   Ticket,
-  Truck
+  Truck,
+  Image as ImageIcon,
+  Locate,
+  GitMerge
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 
@@ -23,11 +26,14 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/admin' },
-    { icon: MapPin, label: 'Vendors & Areas', path: '/admin/vendors' },
-    { icon: Truck, label: 'Delivery Partners', path: '/admin/delivery-boys' },
+    { icon: Locate, label: 'Service Areas', path: '/admin/areas' },
+    { icon: MapPin, label: 'Vendors', path: '/admin/vendors' },
+    { icon: Truck, label: 'Delivery Boys', path: '/admin/delivery-boys' },
     { icon: Package, label: 'Products', path: '/admin/products' },
-    { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
     { icon: Layers, label: 'Categories', path: '/admin/categories' },
+    { icon: GitMerge, label: 'Subcategories', path: '/admin/subcategories' },
+    { icon: ImageIcon, label: 'Banners', path: '/admin/banners' },
+    { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
     { icon: Ticket, label: 'Coupons', path: '/admin/coupons' },
   ];
 
