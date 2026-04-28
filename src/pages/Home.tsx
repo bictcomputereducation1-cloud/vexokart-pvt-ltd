@@ -135,13 +135,15 @@ export default function Home() {
       {/* 🔹 LOGO & TAGLINE */}
       <div className="pt-6 pb-4 flex flex-col items-center">
          <div className="flex items-center gap-2">
-            <div className="relative">
-               <ShoppingCart className="h-8 w-8 text-[#C49B3B] fill-[#C49B3B]/10" />
-               <div className="absolute -top-1 -left-1 flex gap-0.5">
+            <div className="relative mr-2">
+               <div className="absolute top-1/2 -left-4 -translate-y-1/2 flex flex-col gap-1.5 opacity-60">
+                  <div className="h-1 w-3 bg-[#C49B3B] rounded-full" />
+                  <div className="h-1 w-5 bg-[#C49B3B] rounded-full" />
                   <div className="h-1 w-2 bg-[#C49B3B] rounded-full" />
                </div>
+               <ShoppingCart className="h-9 w-9 text-[#C49B3B] fill-[#C49B3B]/5" />
             </div>
-            <h1 className="text-4xl font-black tracking-tighter text-slate-900">
+            <h1 className="text-5xl font-black tracking-tighter text-slate-900 logo-font">
                Vexo<span className="text-[#C49B3B]">Kart</span>
             </h1>
          </div>
@@ -169,34 +171,37 @@ export default function Home() {
 
       {/* 🔹 HERO BANNER */}
       <div className="px-4 mb-8">
-        <div className="relative h-[220px] rounded-[3rem] bg-amber-50 overflow-hidden group border border-white shadow-xl shadow-amber-900/5">
-          <div className="absolute inset-0 p-8 flex flex-col justify-center z-10">
-            <p className="text-slate-600 text-xs font-bold mb-1">Everything You Need,</p>
-            <h2 className="text-4xl font-black text-[#C49B3B] leading-none tracking-tighter mb-4">
+        <div className="relative aspect-[335/200] w-full rounded-[2.5rem] bg-amber-50 overflow-hidden border border-white shadow-xl shadow-amber-900/5 group">
+          {/* Background Texture/Shapes */}
+          <div className="absolute top-0 right-0 w-1/2 h-full bg-amber-100/30 skew-x-[-12deg] translate-x-12" />
+          
+          <div className="absolute inset-0 p-6 flex flex-col justify-center z-10 w-[60%]">
+            <p className="text-slate-600 text-[10px] md:text-xs font-bold mb-1">Everything You Need,</p>
+            <h2 className="text-2xl md:text-4xl font-black text-[#C49B3B] leading-[1.1] tracking-tighter mb-4">
               Delivered in <br /> 10 Minutes
             </h2>
-            <p className="text-slate-400 text-[10px] font-bold mb-6">Fast. Reliable. Always.</p>
+            <p className="text-slate-400 text-[9px] md:text-[10px] font-bold mb-6">Fast. Reliable. Always.</p>
             <button 
               onClick={() => navigate('/categories')}
-              className="w-fit bg-[#C49B3B] text-white px-6 py-2.5 rounded-full font-black uppercase tracking-widest text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-900/20"
+              className="w-fit bg-[#C49B3B] text-white px-5 py-2 md:px-6 md:py-2.5 rounded-full font-black uppercase tracking-widest text-[9px] md:text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-900/20"
             >
               Shop Now <ArrowRight className="h-3 w-3" />
             </button>
           </div>
           
-          <div className="absolute right-0 top-0 bottom-0 w-[55%] flex items-center justify-end p-4">
+          <div className="absolute right-0 top-0 bottom-0 w-[55%] flex items-center justify-end p-2 md:p-4">
              <img 
                src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600" 
                alt="" 
-               className="h-full object-contain filter drop-shadow-2xl" 
+               className="h-full object-contain filter drop-shadow-2xl translate-x-4" 
              />
           </div>
 
           {/* 10 MINS Badge */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
-             <div className="bg-white rounded-full h-20 w-20 flex flex-col items-center justify-center border-2 border-amber-100 p-1">
-                <span className="text-2xl font-black text-amber-600 leading-none">10</span>
-                <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter text-center">Minutes<br/>Delivery</span>
+          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 z-[11]">
+             <div className="bg-white rounded-full h-16 w-16 md:h-20 md:w-20 flex flex-col items-center justify-center border-2 border-amber-100 p-1 shadow-sm">
+                <span className="text-xl md:text-2xl font-black text-amber-600 leading-none">10</span>
+                <span className="text-[6px] md:text-[7px] font-black text-slate-400 uppercase tracking-tighter text-center">Minutes<br/>Delivery</span>
              </div>
           </div>
         </div>

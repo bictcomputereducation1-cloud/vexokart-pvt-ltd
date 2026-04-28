@@ -127,7 +127,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
                    <span className="text-[10px] font-bold text-slate-400 leading-none mb-0.5">Deliver to</span>
                    <div className="flex items-center gap-1">
                      <span className="text-xs font-black text-slate-900 tracking-tight line-clamp-1 max-w-[80px]">
-                       {address || 'Near HSS Sopore'}
+                       {address || 'Set Location...'}
                      </span>
                      <ChevronDown className="h-3 w-3 text-slate-900 group-hover:translate-y-0.5 transition-transform" />
                    </div>
@@ -139,16 +139,17 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
           {/* Center: Logo */}
           <div className="flex flex-col items-center">
             <div className="flex items-center gap-1">
-               <div className="bg-green-600 p-1.5 rounded-xl shadow-lg shadow-green-200 rotate-[-4deg]">
-                 <ShoppingCart className="h-4 w-4 text-white" />
+               <div className="relative mr-1.5 translate-y-0.5">
+                  <div className="absolute top-1/2 -left-2.5 -translate-y-1/2 flex flex-col gap-0.5 opacity-40">
+                    <div className="h-0.5 w-1.5 bg-[#C49B3B] rounded-full" />
+                    <div className="h-0.5 w-2.5 bg-[#C49B3B] rounded-full" />
+                  </div>
+                  <ShoppingCart className="h-5 w-5 text-[#C49B3B] fill-[#C49B3B]/5" />
                </div>
-               <span className="text-2xl font-black tracking-tighter leading-none text-slate-900">
-                Vexo<span className="text-green-600">Kart</span>
+               <span className="text-xl font-black tracking-tighter leading-none text-slate-900 logo-font">
+                Vexo<span className="text-[#C49B3B]">Kart</span>
               </span>
             </div>
-            <span className="text-[8px] font-black text-green-600/60 uppercase tracking-[0.2em] mt-1">
-              - Cool Point -
-            </span>
           </div>
 
           {/* Right: Icons */}
