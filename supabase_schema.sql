@@ -37,6 +37,15 @@ CREATE TABLE categories (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+-- 2.5 Subcategories table
+CREATE TABLE subcategories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  category_id UUID REFERENCES categories(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  image_url TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
 -- 3. Products table
 CREATE TABLE products (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -44,6 +53,7 @@ CREATE TABLE products (
   description TEXT,
   price DECIMAL(10, 2) NOT NULL,
   category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+  subcategory_id UUID REFERENCES subcategories(id) ON DELETE SET NULL,
   image_url TEXT,
   stock INTEGER DEFAULT 0,
   cod_available BOOLEAN DEFAULT true,
@@ -67,6 +77,8 @@ CREATE TABLE orders (
   razorpay_order_id TEXT,
   address TEXT NOT NULL,
   pincode TEXT NOT NULL,
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
   invoice_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -80,6 +92,8 @@ CREATE TABLE user_addresses (
   full_address TEXT NOT NULL,
   city TEXT NOT NULL,
   pincode TEXT NOT NULL,
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
   is_default BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -93,6 +107,9 @@ CREATE TABLE serviceable_areas (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   pincode TEXT UNIQUE NOT NULL,
   city TEXT NOT NULL,
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
+  radius_km DECIMAL(5, 2) DEFAULT 10.0,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );

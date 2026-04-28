@@ -183,23 +183,38 @@ export default function Home() {
 
       {/* 🔹 CATEGORY GRID */}
       <div className="px-4 mb-10">
-        <div className="grid grid-cols-5 gap-y-8 gap-x-4">
-          {categories.slice(0, 10).map((cat, idx) => (
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-black text-slate-900 tracking-tighter">Shop by Category</h3>
+          <button onClick={() => navigate('/categories')} className="text-xs font-black text-green-600 uppercase tracking-widest">
+            View All
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {categories.map((cat, idx) => (
             <motion.div
               key={cat.id}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.96 }}
               onClick={() => navigate(`/category/${cat.slug}`)}
-              className="flex flex-col items-center gap-3 cursor-pointer group"
+              className="relative aspect-square rounded-[2rem] overflow-hidden group cursor-pointer border border-white shadow-sm"
             >
               <div className={cn(
-                "w-full aspect-square rounded-[2rem] flex items-center justify-center p-3 shadow-sm border border-white/5 transition-transform group-hover:scale-105",
-                categoryBackgrounds[idx % categoryBackgrounds.length]
-              )}>
-                <img src={cat.image_url} alt="" className="w-full h-full object-contain mix-blend-multiply filter drop-shadow-sm transition-transform group-hover:rotate-6" />
+                "absolute inset-0 transition-colors duration-500",
+                categoryBackgrounds[idx % categoryBackgrounds.length],
+                "group-hover:bg-opacity-80"
+              )} />
+              
+              <div className="absolute inset-0 p-4 flex flex-col items-center justify-center gap-2">
+                <div className="w-full h-full max-h-[60%] flex items-center justify-center">
+                  <img 
+                    src={cat.image_url || ''} 
+                    alt={cat.name} 
+                    className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-110 transition-transform duration-500" 
+                  />
+                </div>
+                <span className="text-[11px] font-black text-slate-900 text-center leading-tight tracking-tight uppercase px-1">
+                  {cat.name}
+                </span>
               </div>
-              <span className="text-[10px] font-black text-slate-800 tracking-tight text-center leading-tight">
-                {cat.name}
-              </span>
             </motion.div>
           ))}
         </div>

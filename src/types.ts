@@ -23,6 +23,7 @@ export interface Product {
   price: number;
   original_price: number;
   category_id: string | null;
+  subcategory_id?: string | null;
   image_url: string | null;
   stock: number;
   cod_available: boolean;
@@ -80,6 +81,9 @@ export interface ServiceableArea {
   id: string;
   pincode: string;
   city: string;
+  latitude: number | null;
+  longitude: number | null;
+  radius_km: number | null;
   is_active: boolean;
   created_at: string;
 }
@@ -104,4 +108,12 @@ export interface Coupon {
   discount_value: number;
   min_order_amount: number;
   is_active: boolean;
+}
+
+export interface Subcategory {
+  id: string;
+  category_id: string;
+  name: string;
+  image_url: string | null;
+  created_at: string;
 }

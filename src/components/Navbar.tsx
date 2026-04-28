@@ -33,76 +33,46 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
   if (isHome) {
     return (
-      <nav className="sticky top-0 z-50 w-full transition-all duration-300 bg-white/80 backdrop-blur-xl border-b border-transparent">
-        <div className="container mx-auto px-4 pt-4 pb-4">
-          {/* 🔹 Top Row: Menu | Deliver To | Notifications/Cart */}
-          <div className="flex items-center justify-between mb-6">
-            <button 
-              onClick={onMenuClick}
-              className="h-10 w-10 flex items-center justify-center text-slate-900 bg-white shadow-sm border border-slate-100 rounded-xl transition-all active:scale-95"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-
+      <nav className="sticky top-0 z-50 w-full bg-white shadow-[0_1px_10px_rgba(0,0,0,0.02)]">
+        <div className="container mx-auto px-4 py-3">
+          {/* 🔹 Top Row: Location & Profile */}
+          <div className="flex items-center justify-between gap-4 mb-4">
             <div 
               onClick={() => setIsModalOpen(true)}
-              className="flex flex-col items-center cursor-pointer group"
+              className="flex items-center gap-2 cursor-pointer flex-grow max-w-[80%]"
             >
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">Deliver to</span>
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-black text-slate-900 tracking-tight">
-                  {address || 'Near HSS haigam Sopore'}
-                </span>
-                <ChevronDown className="h-4 w-4 text-slate-900 group-hover:translate-y-0.5 transition-transform" />
+              <div className="h-10 w-10 flex-shrink-0 bg-primary/10 flex items-center justify-center rounded-2xl text-primary">
+                <MapPin className="h-5 w-5" />
               </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button className="h-10 w-10 flex items-center justify-center text-slate-900 bg-white shadow-sm border border-slate-100 rounded-xl relative transition-all active:scale-95">
-                <Bell className="h-5 w-5" />
-                <span className="absolute top-1.5 right-1.5 bg-green-600 text-white text-[8px] font-black h-4 w-4 rounded-full flex items-center justify-center border-2 border-white shadow-sm">2</span>
-              </button>
-              <Link to="/cart" className="h-10 w-10 flex items-center justify-center text-slate-900 bg-white shadow-sm border border-slate-100 rounded-xl relative transition-all active:scale-95">
-                <ShoppingCart className="h-5 w-5" />
-                {totalItems > 0 && (
-                  <span className="absolute top-1.5 right-1.5 bg-green-600 text-white text-[8px] font-black h-4 w-4 rounded-full flex items-center justify-center border-2 border-white shadow-sm">
-                    {totalItems}
-                  </span>
-                )}
-              </Link>
-            </div>
-          </div>
-
-          {/* 🔹 Middle Row: Brand Logo & Tagline */}
-          <div className="flex flex-col items-center mb-6">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="h-10 w-10 bg-green-600 rounded-xl shadow-lg shadow-green-200 rotate-[-8deg] flex items-center justify-center">
-                  <ShoppingCart className="h-5 w-5 text-white" />
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1">
+                  <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Deliver To</span>
+                  <ChevronDown className="h-3 w-3 text-slate-400" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 h-3 w-3 bg-amber-400 rounded-full border-2 border-white" />
+                <span className="text-sm font-black text-slate-900 truncate leading-tight">
+                  {address || 'Set Delivery Location'}
+                </span>
               </div>
-              <h1 className="text-4xl font-black tracking-tighter text-slate-900">
-                Vexo<span className="text-green-600">Kart</span>
-              </h1>
             </div>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="h-[1px] w-4 bg-green-500/30" />
-              <span className="text-[10px] font-black text-green-700/60 uppercase tracking-[0.2em]">Smart Shopping, Easy Living</span>
-              <div className="h-[1px] w-4 bg-green-500/30" />
+
+            <div className="flex items-center gap-3">
+              <Link to="/profile" className="h-10 w-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-900 active:scale-90 transition-all">
+                <User className="h-5 w-5" />
+              </Link>
             </div>
           </div>
 
           {/* 🔹 Bottom Row: Search Bar */}
           <div 
             onClick={() => navigate('/search')}
-            className="relative group cursor-pointer"
+            className="relative cursor-pointer"
           >
-            <div className="flex items-center gap-4 h-14 px-6 bg-white rounded-full shadow-2xl shadow-slate-900/5 border border-slate-100 transition-all active:scale-[0.98]">
+            <div className="flex items-center gap-3 h-12 px-5 bg-slate-50 rounded-2xl border border-slate-100 transition-all active:scale-[0.98]">
               <Search className="h-5 w-5 text-slate-400" />
-              <span className="text-sm text-slate-400 font-medium tracking-tight">Search for products, brands and more...</span>
-              <div className="ml-auto h-10 w-10 bg-white border border-slate-100 shadow-sm rounded-full flex items-center justify-center text-green-600 transition-colors group-hover:bg-slate-50">
-                <Mic className="h-5 w-5" />
+              <span className="text-sm text-slate-400 font-bold tracking-tight">Search "dairy products"</span>
+              <div className="ml-auto flex items-center gap-2 text-slate-300">
+                <div className="h-4 w-[1px] bg-slate-200" />
+                <Mic className="h-5 w-5 hover:text-primary transition-colors" />
               </div>
             </div>
           </div>

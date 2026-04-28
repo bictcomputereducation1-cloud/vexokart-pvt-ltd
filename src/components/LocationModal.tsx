@@ -37,21 +37,85 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
     if (data) setSavedAddresses(data);
   };
 
+  const [isCheckPerformed, setIsCheckPerformed] = useState(false);
+  const [isServiceableInModal, setIsServiceableInModal] = useState(false);
+
   const handleLocationSelected = (data: { lat: number, lng: number, address: string, city: string, pincode: string }) => {
     setPincode(data.pincode);
     setCity(data.city);
     setFullAddress(data.address);
     setLat(data.lat);
     setLng(data.lng);
+    setIsCheckPerformed(false); // Reset check if location moves
+  };
+
+  const handleServiceCheck = async () => {
+    if (!lat || !lng) return toast.error('Please select location on map');
+    setValidating(true);
+    try {
+      // Direct check against Supabase
+      const { data: areaByPincode } = await supabase
+        .from('serviceable_areas')
+        .select('*')
+        .eq('pincode', pincode)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      let serviceable = false;
+      if (areaByPincode) {
+        serviceable = true;
+      } else {
+        const { data: allAreas } = await supabase
+          .from('serviceable_areas')
+          .select('*')
+          .eq('is_active', true);
+        
+        if (allAreas) {
+          for (const area of allAreas) {
+            if (area.latitude && area.longitude && area.radius_km) {
+              const R = 6371;
+              const dLat = (area.latitude - lat) * Math.PI / 180;
+              const dLon = (area.longitude - lng) * Math.PI / 180;
+              const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                        Math.cos(lat * Math.PI / 180) * Math.cos(area.latitude * Math.PI / 180) * 
+                        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              if (R * c <= area.radius_km) {
+                serviceable = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      setIsServiceableInModal(serviceable);
+      setIsCheckPerformed(true);
+      if (serviceable) {
+        toast.success(`Great news! We deliver to ${city || pincode}`);
+      } else {
+        toast.error('Not serviceable in your area', {
+            description: "We are currently only serving select areas of Sopore."
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error('Service check failed');
+    } finally {
+      setValidating(false);
+    }
   };
 
   const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!lat || !lng) return toast.error('Please select location on map');
+    if (!isCheckPerformed || !isServiceableInModal) {
+        handleServiceCheck();
+        return;
+    }
     
     if (user) {
       if (!fullAddress.trim()) return toast.error('Please enter your full address');
-      if (phone.length < 10) return toast.error('Please enter a valid 10-digit phone number');
+      if (phone.length < 10) return toast.error('Enter a valid 10-digit phone number');
     }
 
     setValidating(true);
@@ -59,7 +123,6 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
       const determinedCity = city || 'My Location';
       
       if (user && fullAddress.trim()) {
-         // Reset existing defaults first
          await supabase
            .from('user_addresses')
            .update({ is_default: false })
@@ -78,18 +141,12 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
          }, { onConflict: 'user_id' });
       }
 
-      toast.success(`Success! Delivering to ${pincode}`);
-      setLocation(pincode, determinedCity, fullAddress, lat, lng);
+      await setLocation(pincode, determinedCity, fullAddress, lat, lng);
+      toast.success('Location set successfully!');
       onClose();
     } catch (err: any) {
       console.error('Address save error:', err);
-      if (err.message?.includes('latitude')) {
-          // Fallback if columns missing
-          setLocation(pincode, city || 'My Location', fullAddress);
-          onClose();
-      } else {
-          toast.error('Failed to save location. Please try again.');
-      }
+      toast.error('Failed to save location');
     } finally {
       setValidating(false);
     }
@@ -110,8 +167,12 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
           .eq('id', addr.id);
       }
       
-      setLocation(addr.pincode, addr.city, addr.full_address, addr.latitude, addr.longitude);
-      toast.success(`Delivery set to ${addr.city}`);
+      const serviceable = await setLocation(addr.pincode, addr.city, addr.full_address, addr.latitude, addr.longitude);
+      if (serviceable) {
+        toast.success(`Delivery set to ${addr.city}`);
+      } else {
+        toast.error(`Vexokart is not yet serviceable in ${addr.pincode}`);
+      }
       onClose();
     } catch (err) {
       toast.error('Failed to update delivery address');
@@ -181,16 +242,12 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
                   </div>
                   
                   <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 flex flex-col gap-1">
-                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Pincode</p>
+                      <div className="bg-white p-4 rounded-2xl border-2 border-primary/20 flex flex-col gap-1 shadow-sm">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-primary">Pincode</p>
                           <input 
-                            type="text" 
-                            required
-                            maxLength={6}
+                            readOnly
                             value={pincode}
-                            onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                            placeholder="6-digit"
-                            className="w-full bg-transparent font-bold focus:outline-none transition-all placeholder:text-slate-200 text-xs"
+                            className="w-full bg-transparent font-black focus:outline-none transition-all text-sm"
                           />
                       </div>
                       <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 flex flex-col gap-1">
@@ -208,16 +265,38 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
                   </div>
                 </div>
               )}
+
+              {isCheckPerformed && (
+                <div className={`p-4 rounded-2xl animate-in zoom-in-95 duration-300 border-2 ${isServiceableInModal ? 'bg-emerald-50 border-emerald-100' : 'bg-red-50 border-red-100'}`}>
+                    <p className={`text-[10px] font-black uppercase tracking-widest ${isServiceableInModal ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {isServiceableInModal ? 'Serviceable Area' : 'Not Serviceable'}
+                    </p>
+                    <p className="text-xs font-bold text-slate-700 mt-1">
+                        {isServiceableInModal 
+                            ? "We deliver here! Proceed to confirm." 
+                            : "Sorry, Vexokart doesn't serve this point yet."}
+                    </p>
+                </div>
+              )}
             </div>
 
             <button 
               type="submit"
               disabled={validating || !lat}
-              className="w-full bg-primary text-black h-16 rounded-[2rem] font-black uppercase tracking-tighter hover:bg-black hover:text-primary transition-all active:scale-95 shadow-xl shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
+              className={`w-full h-16 rounded-[2rem] font-black uppercase tracking-tighter transition-all active:scale-95 shadow-xl disabled:opacity-50 flex items-center justify-center gap-2 text-sm ${
+                isCheckPerformed && isServiceableInModal 
+                ? 'bg-black text-primary shadow-primary/10' 
+                : 'bg-primary text-black shadow-primary/20'
+              }`}
             >
               {validating ? <Loader2 className="h-5 w-5 animate-spin" /> : (
                   <span className="flex items-center gap-2">
-                      Confirm & Set Location <CheckCircle2 className="h-5 w-5" />
+                      {isCheckPerformed && isServiceableInModal 
+                        ? 'Confirm & Proceed' 
+                        : isCheckPerformed && !isServiceableInModal
+                        ? 'Try Another Area'
+                        : 'Check Serviceability'}
+                      <CheckCircle2 className="h-5 w-5" />
                   </span>
               )}
             </button>

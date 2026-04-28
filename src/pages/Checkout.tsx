@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useCart } from '../CartContext';
 import { useAuth } from '../AuthContext';
+import { useDeliveryLocation } from '../LocationContext';
 import { supabase } from '../lib/supabase';
 import { Address } from '../types';
 import { AddressSelector } from '../components/AddressSelector';
@@ -47,6 +48,7 @@ export default function Checkout() {
     removeFromCart 
   } = useCart();
   const { user } = useAuth();
+  const { isServiceable: areaServiceable } = useDeliveryLocation();
   const [loading, setLoading] = useState(false);
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(null);
   const [vendorLoading, setVendorLoading] = useState(false);
@@ -431,13 +433,15 @@ export default function Checkout() {
               onSelect={(addr) => setSelectedAddress(addr)}
             />
 
-           {selectedAddress && isPincodeServiceable === false && !vendorLoading && (
+           {selectedAddress && (isPincodeServiceable === false || areaServiceable === false) && !vendorLoading && (
              <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex items-center gap-3">
                 <div className="h-8 w-8 bg-white rounded-lg flex items-center justify-center text-red-600 shadow-sm">
                    <Package className="h-5 w-5" />
                 </div>
                 <p className="text-[10px] font-black uppercase text-red-900 tracking-tight">
-                  Service not available at this pincode ({selectedAddress.pincode})
+                  {areaServiceable === false 
+                    ? "Service not available at this area. Choose another spot." 
+                    : `No vendor found in your area (${selectedAddress.pincode})`}
                 </p>
              </div>
            )}
@@ -611,12 +615,12 @@ export default function Checkout() {
           </div>
 
           <button 
-            disabled={loading || !selectedAddress || isPincodeServiceable === false || vendorLoading}
+            disabled={loading || !selectedAddress || isPincodeServiceable === false || areaServiceable === false || vendorLoading}
             onClick={handlePayment}
             className="flex-grow bg-emerald-600 text-white h-16 rounded-[2rem] shadow-2xl shadow-emerald-100 flex flex-col items-center justify-center active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100"
           >
             <span className="text-[12px] font-black uppercase tracking-wider">
-               {vendorLoading ? 'Verifying Service...' : isPincodeServiceable === false ? 'Service Not Available' : paymentMethod === 'ONLINE' ? 'Pay Now' : 'Place Order (Cash on Delivery)'}
+               {vendorLoading ? 'Verifying Service...' : (isPincodeServiceable === false || areaServiceable === false) ? 'Service Not Available' : paymentMethod === 'ONLINE' ? 'Pay Now' : 'Place Order (Cash on Delivery)'}
             </span>
             <span className="text-[9px] font-bold text-emerald-200 uppercase tracking-widest mt-0.5">
               {paymentMethod === 'COD' ? 'Secure Checkout' : 'Secure Online Payment'}

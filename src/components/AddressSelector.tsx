@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Address } from '../types';
-import { Plus, MapPin, CheckCircle2, Trash2, Home, Briefcase, Building2, Map, Navigation } from 'lucide-react';
+import { Plus, MapPin, CheckCircle2, Trash2, Home, Briefcase, Building2, Map, Navigation, AlertCircle } from 'lucide-react';
 import { useAuth } from '../AuthContext';
+import { useDeliveryLocation } from '../LocationContext';
 import { toast } from 'sonner';
 import { LocationPicker } from './LocationPicker';
 
@@ -13,6 +14,7 @@ interface AddressSelectorProps {
 
 export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, selectedId }) => {
   const { user } = useAuth();
+  const { setLocation, isServiceable, pincode: currentPincode } = useDeliveryLocation();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
@@ -42,15 +44,23 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
       if (error) throw error;
       setAddresses(data || []);
       
-      // Auto-select default or first address
+      // Auto-select default or first address if nothing selected
       if (data && data.length > 0 && !selectedId) {
         const def = data.find(a => a.is_default) || data[0];
-        onSelect(def);
+        handleSelect(def);
       }
     } catch (error) {
       console.error('Error fetching addresses:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSelect = async (addr: Address) => {
+    onSelect(addr);
+    const serviceable = await setLocation(addr.pincode, addr.city, addr.full_address, addr.latitude, addr.longitude);
+    if (!serviceable) {
+      toast.error(`Vexokart is not yet serviceable in ${addr.pincode}`);
     }
   };
 
@@ -141,7 +151,7 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
         {addresses.map((addr) => (
           <div 
             key={addr.id}
-            onClick={() => onSelect(addr)}
+            onClick={() => handleSelect(addr)}
             className={`p-4 rounded-2xl border-2 transition-all cursor-pointer relative group ${
               selectedId === addr.id 
                 ? 'border-primary bg-primary/5' 
@@ -150,17 +160,24 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
           >
             <div className="flex items-start gap-3">
               <div className="bg-slate-50 p-2 rounded-xl group-hover:bg-white transition-colors">
-                <MapPin className="h-4 w-4 text-slate-400" />
+                <MapPin className={`h-4 w-4 ${selectedId === addr.id ? 'text-primary' : 'text-slate-400'}`} />
               </div>
               <div className="flex-grow">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-black uppercase tracking-widest text-slate-900">{addr.full_name}</span>
-                  {addr.is_default && <span className="text-[8px] font-bold bg-slate-100 px-1.5 py-0.5 rounded uppercase tracking-tighter">Default</span>}
+                  <span className="text-[11px] font-black uppercase tracking-tight text-slate-900 line-clamp-1">{addr.full_name}</span>
+                  {addr.is_default && <span className="text-[8px] font-black bg-primary/20 text-primary px-1.5 py-0.5 rounded uppercase tracking-widest">Default</span>}
                 </div>
-                <p className="text-[10px] font-medium text-slate-500 leading-relaxed mb-1 capitalize">
+                <p className="text-[10px] font-medium text-slate-500 leading-relaxed mb-1 capitalize line-clamp-2">
                   {addr.full_address}, {addr.city} - {addr.pincode}
                 </p>
-                <p className="text-[9px] font-black italic tracking-tighter text-slate-400">PH: {addr.phone}</p>
+                <div className="flex items-center gap-2">
+                   <p className="text-[9px] font-black italic tracking-tighter text-slate-400">PH: {addr.phone}</p>
+                   {selectedId === addr.id && !isServiceable && (
+                      <span className="flex items-center gap-1 text-[8px] font-black uppercase text-red-500 bg-red-50 px-2 py-0.5 rounded-full">
+                         <AlertCircle className="h-2 w-2" /> Out of Range
+                      </span>
+                   )}
+                </div>
               </div>
               <div className="flex flex-col items-end gap-2">
                 {selectedId === addr.id ? (
