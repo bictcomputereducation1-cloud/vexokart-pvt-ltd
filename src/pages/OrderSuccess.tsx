@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import confetti from 'canvas-confetti';
 import { 
@@ -14,7 +15,9 @@ import {
   ShoppingBag,
   TrendingUp,
   Share2,
-  Sparkles
+  Sparkles,
+  Zap,
+  ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
@@ -123,6 +126,7 @@ export default function OrderSuccess() {
         .from('orders')
         .select(`
           *,
+          users (*),
           order_items (
             *,
             products (*)
@@ -141,7 +145,7 @@ export default function OrderSuccess() {
   };
 
   const copyOrderId = () => {
-    const orderId = `VEX${order?.id?.substring(0, 8).toUpperCase()}`;
+    const orderId = `#VX${order?.id?.substring(0, 8).toUpperCase()}`;
     navigator.clipboard.writeText(orderId);
     toast.success('Order ID copied!', {
         position: 'bottom-center',
@@ -155,7 +159,7 @@ export default function OrderSuccess() {
         <motion.div 
           animate={{ scale: [1, 1.2, 1], rotate: 360 }}
           transition={{ repeat: Infinity, duration: 2 }}
-          className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full shadow-lg shadow-emerald-100" 
+          className="w-16 h-16 border-4 border-[#5E3192] border-t-transparent rounded-full shadow-lg shadow-purple-100" 
         />
         <motion.p 
           initial={{ opacity: 0 }}
@@ -171,251 +175,264 @@ export default function OrderSuccess() {
   const itemTotal = order?.order_items?.reduce((sum: number, item: any) => sum + item.price * item.quantity, 0) || 0;
   const totalMRP = order?.order_items?.reduce((sum: number, item: any) => sum + (item.products?.original_price || item.products?.price || item.price) * item.quantity, 0) || 0;
   const savedAmount = totalMRP - itemTotal;
-  const deliveryFee = Math.max(0, (order?.total_amount || 0) - itemTotal);
-  const orderIdShort = `VEX${order?.id?.substring(0, 8).toUpperCase()}`;
+  const orderIdLong = `#VX${order?.id?.substring(0, 8).toUpperCase()}`;
+  const orderDateFormatted = order?.created_at ? new Date(order.created_at).toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric'
+  }) : '';
+  const orderTimeFormatted = order?.created_at ? new Date(order.created_at).toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  }) : '';
+
+  const getStatusNumber = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'placed': return 1;
+      case 'confirmed': return 2;
+      case 'out_for_delivery': return 3;
+      case 'delivered': return 4;
+      default: return 1;
+    }
+  };
+
+  const currentStatusIndex = getStatusNumber(order?.status || 'placed');
 
   return (
-    <div className="bg-slate-50 min-h-screen pb-32 overflow-x-hidden">
-      {/* 🔹 PREMIUM HEADER */}
-      <div className="sticky top-0 z-[60] bg-white border-b border-slate-100 px-4 py-4 flex items-center justify-between shadow-sm">
+    <div className="bg-[#F8F9FB] min-h-screen pb-40 overflow-x-hidden font-sans">
+      {/* 🔹 PURPLE SUCCESS HEADER */}
+      <div className="bg-[#5E3192] pt-8 pb-16 px-4 relative overflow-hidden">
+        {/* Background Confetti SVG Pattern or simple circles */}
+        <div className="absolute inset-0 opacity-10 pointer-events-none">
+           {[...Array(20)].map((_, i) => (
+             <div 
+               key={i} 
+               className="absolute rounded-full bg-white" 
+               style={{
+                 width: Math.random() * 8 + 4 + 'px',
+                 height: Math.random() * 8 + 4 + 'px',
+                 top: Math.random() * 100 + '%',
+                 left: Math.random() * 100 + '%',
+                 opacity: Math.random() * 0.5 + 0.2
+               }}
+             />
+           ))}
+        </div>
+
         <button 
           onClick={() => navigate('/home')}
-          className="p-2 -ml-2 text-slate-700 hover:bg-slate-50 rounded-full transition-colors"
+          className="absolute top-8 left-4 p-2 text-white/80 hover:text-white transition-colors"
         >
           <ArrowLeft className="h-6 w-6" />
         </button>
-        
-        <span className="text-lg font-black italic tracking-tighter text-emerald-600 absolute left-1/2 -translate-x-1/2">
-          VEXO<span className="text-slate-900">KART</span>
-        </span>
 
-        <button className="flex items-center gap-1.5 text-slate-400 hover:text-emerald-600 transition-colors">
-          <HelpCircle className="h-4 w-4" />
-          <span className="text-[9px] font-black uppercase tracking-widest leading-none">Need Help?</span>
-        </button>
+        <div className="flex flex-col items-center justify-center text-center space-y-6 pt-4">
+           <motion.div 
+            initial={{ scale: 0, rotate: -20 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", damping: 12 }}
+            className="w-24 h-24 bg-white rounded-full flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.2)]"
+           >
+             <CheckCircle2 className="h-14 w-14 text-[#5E3192]" />
+           </motion.div>
+
+           <div className="space-y-2">
+             <h1 className="text-2xl font-black text-white tracking-tight">Order Placed Successfully!</h1>
+             <p className="text-white/70 text-sm font-medium">Thank you for shopping with us 💜</p>
+           </div>
+
+           <button className="bg-white/10 hover:bg-white/20 text-white px-6 py-3 rounded-2xl flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all">
+             <Share2 className="h-4 w-4" />
+             Share Order Details
+           </button>
+        </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
-        {/* 🔹 SUCCESS CARD */}
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9, y: 30 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ type: "spring", damping: 15 }}
-          className="bg-emerald-600 rounded-[2.5rem] p-10 text-white shadow-[0_30px_60px_-15px_rgba(5,150,105,0.3)] relative overflow-hidden"
-        >
-          <motion.div 
-            animate={{ rotate: 360 }}
-            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-            className="absolute -right-12 -top-12 opacity-5"
-          >
-             <Sparkles className="h-48 w-48" />
-          </motion.div>
-          
-          <div className="flex flex-col items-center text-center gap-6 relative z-10">
-            <motion.div 
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
-              className="bg-white/20 p-6 rounded-full border border-white/20 shadow-inner"
-            >
-               <CheckCircle2 className="h-14 w-14 text-white" />
-            </motion.div>
-            <div className="space-y-3">
-               <motion.h1 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
-                className="text-3xl font-black italic tracking-tighter leading-none"
-               >
-                 🎉 Order Placed Successfully!
-               </motion.h1>
-               <motion.p 
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.4 }}
-                className="text-emerald-100 text-sm font-bold opacity-90 max-w-[280px] mx-auto leading-relaxed"
-               >
-                 Thank you for choosing Vexokart. We've started preparing your items with extra care!
-               </motion.p>
-            </div>
-          </div>
-
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.6 }}
-            className="mt-10 bg-black/10 rounded-2xl p-5 border border-white/10 flex items-center justify-between"
-          >
-            <div>
-               <p className="text-[9px] font-black uppercase tracking-widest text-emerald-200 mb-1">Your Unique Order ID</p>
-               <p className="text-base font-black tracking-[0.15em] font-mono italic">{orderIdShort}</p>
-            </div>
-            <button 
-              onClick={copyOrderId}
-              className="p-3.5 bg-white/20 rounded-xl hover:bg-white/30 transition-colors active:scale-90"
-            >
-               <Copy className="h-5 w-5" />
-            </button>
-          </motion.div>
-        </motion.div>
-
-        {/* 🔹 SHIPMENT STATUS (NEW FOR PREMIUM FEEL) */}
-        <div className="bg-white rounded-[2rem] p-8 border border-slate-100 shadow-sm relative overflow-hidden">
-           <div className="flex items-center justify-between mb-8">
-              <h2 className="text-xs font-black uppercase tracking-widest text-slate-900 flex items-center gap-2">
-                 <Package className="h-4 w-4 text-emerald-600" />
-                 Shipment Progress
-              </h2>
-              <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full uppercase tracking-widest">Processing</span>
-           </div>
-
-           <div className="relative h-2 w-full bg-slate-50 rounded-full overflow-hidden mb-4">
-              <motion.div 
-                initial={{ width: 0 }}
-                animate={{ width: "25%" }}
-                transition={{ duration: 1.5, delay: 1 }}
-                className="absolute h-full bg-emerald-600 rounded-full"
-              />
-           </div>
-
-           <div className="grid grid-cols-4 gap-2">
-              <div className="text-[8px] font-black uppercase tracking-tighter text-emerald-600">Placed</div>
-              <div className="text-[8px] font-black uppercase tracking-tighter text-slate-300">Packed</div>
-              <div className="text-[8px] font-black uppercase tracking-tighter text-slate-300">Transit</div>
-              <div className="text-[8px] font-black uppercase tracking-tighter text-slate-300 text-right">Done</div>
-           </div>
-        </div>
-
-        {/* 🔹 DELIVERY INFO CARD */}
-        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex items-center justify-between gap-4">
-           <div className="flex items-center gap-4">
-              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                 <Clock className="h-6 w-6 text-emerald-600" />
-              </div>
-              <div className="flex-1">
-                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Estimated Arrival</p>
-                 <p className="text-sm font-black text-slate-900 tracking-tight">Tomorrow, {new Date(new Date().getTime() + 24 * 60 * 60 * 1000).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}</p>
-                 <p className="text-[10px] font-bold text-slate-400 mt-0.5">Slots: 10:00 AM - 2:00 PM</p>
-              </div>
-           </div>
-           <div className="flex flex-col items-end gap-2 shrink-0">
-              <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-widest">Guaranteed</span>
-              <p className="text-[8px] font-bold text-slate-300 text-right leading-tight max-w-[80px]">Freshness seal assured</p>
-           </div>
-        </div>
-
-        {/* 🔹 ORDER DETAILS */}
-        <div className="bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm space-y-6">
-           <div className="flex items-center justify-between border-b border-slate-50 pb-4">
-              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Items Ordered</h2>
-              <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">{order?.order_items?.length} Items</span>
-           </div>
-           
-           <div className="space-y-6">
-             {order?.order_items?.map((item: any) => (
-               <div key={item.id} className="flex items-center gap-4 group">
-                 <div className="w-16 h-16 bg-slate-50 rounded-2xl border border-slate-100 p-2 flex-shrink-0 group-hover:scale-105 transition-transform">
-                    <img src={item.products?.image_url} alt={item.products?.name} className="w-full h-full object-contain" />
+      <div className="max-w-4xl mx-auto px-4 -mt-10 space-y-4">
+        {/* 🔹 ORDER DETAILS CARD */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+           <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                 <div className="h-10 w-10 bg-purple-50 rounded-xl flex items-center justify-center text-[#5E3192]">
+                    <ShoppingBag className="h-5 w-5" />
                  </div>
-                 <div className="flex-grow min-w-0">
-                    <h3 className="text-sm font-bold text-slate-900 truncate leading-tight">{item.products?.name}</h3>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">Qty: {item.quantity}</p>
-                 </div>
-                 <p className="text-sm font-black italic tracking-tighter text-slate-900">₹{item.price * item.quantity}</p>
-               </div>
-             ))}
-           </div>
-        </div>
-
-        {/* 🔹 DELIVERY ADDRESS */}
-        <div className="bg-white rounded-[2.5rem] p-6 border border-slate-100 shadow-sm space-y-4">
-           <div className="flex items-center justify-between">
-              <h2 className="text-sm font-black uppercase tracking-widest text-slate-900">Shipping To</h2>
-           </div>
-           <div className="flex gap-4 items-start">
-              <div className="bg-emerald-50 p-3 rounded-2xl shrink-0">
-                 <MapPin className="h-5 w-5 text-emerald-600" />
+                 <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Order Details</h2>
               </div>
+              <div className="flex items-center gap-2">
+                 <span className="text-[11px] font-bold text-slate-400">Order ID: {orderIdLong}</span>
+                 <button onClick={copyOrderId} className="p-1 hover:bg-slate-50 rounded"><Copy className="h-3.5 w-3.5 text-slate-300" /></button>
+              </div>
+           </div>
+
+           <div className="grid grid-cols-2 gap-8">
               <div className="space-y-1">
-                 <p className="text-sm font-bold text-slate-900 leading-tight">{order?.address}</p>
-                 <p className="text-[11px] font-bold text-slate-400 tracking-wider">ZIP: {order?.pincode}</p>
+                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Order Date</p>
+                 <p className="text-xs font-black text-slate-800">{orderDateFormatted}  •  {orderTimeFormatted}</p>
               </div>
-           </div>
-        </div>
-
-        {/* 🔹 PAYMENT & SUMMARY */}
-        <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm space-y-8">
-           <div className="space-y-4 border-b border-dashed border-slate-100 pb-8">
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                 <div className="flex items-center gap-3">
-                    <CreditCard className="h-4 w-4" />
-                    <span>Mode</span>
+              <div className="space-y-1 border-l border-slate-100 pl-8">
+                 <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Payment Method</p>
+                 <div className="flex items-center gap-2">
+                    <div className="h-5 w-8 bg-slate-50 flex items-center justify-center rounded overflow-hidden">
+                       <CreditCard className="h-3.5 w-3.5 text-slate-400" />
+                    </div>
+                    <p className="text-xs font-black text-slate-800">{order?.payment_method?.toUpperCase()} •••• 1234</p>
                  </div>
-                 <span className="text-slate-900 italic tracking-tighter">{order?.payment_method?.toUpperCase()}</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                 <span>Subtotal</span>
-                 <span className="text-slate-900 italic tracking-tighter">₹{itemTotal}</span>
-              </div>
-              <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
-                 <span>Delivery Fee</span>
-                 <span className={`${deliveryFee === 0 ? 'text-emerald-600 font-black' : 'text-slate-900'} italic tracking-tighter`}>
-                    {deliveryFee === 0 ? 'FREE' : `₹${deliveryFee}`}
-                 </span>
-              </div>
-           </div>
-           
-           <div className="flex justify-between items-end">
-              <div>
-                 <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-1">Final Amount</p>
-                 <p className="text-4xl font-black italic tracking-tighter text-slate-900">₹{order?.total_amount}</p>
-              </div>
-              <div className="bg-emerald-600/5 px-6 py-4 rounded-[1.5rem] border border-emerald-600/10 backdrop-blur-sm">
-                 <p className="text-[10px] font-black text-emerald-900 uppercase tracking-widest text-center leading-tight">
-                   Total Savings <br/><span className="text-emerald-600 text-sm italic tracking-tighter">₹{savedAmount}</span>
-                 </p>
               </div>
            </div>
         </div>
 
-        {/* Support Options */}
-        <div className="grid grid-cols-2 gap-4 pb-12">
-           <motion.div 
-            whileTap={{ scale: 0.95 }}
-            className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center gap-4 cursor-pointer"
-           >
-              <div className="bg-slate-50 p-4 rounded-2xl group-hover:bg-emerald-50 transition-colors">
-                 <Share2 className="h-6 w-6 text-slate-400" />
+        {/* 🔹 DELIVERY TRACKER CARD */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+           <div className="flex items-center justify-between mb-8">
+              <div>
+                 <h2 className="text-sm font-black text-[#5E3192] tracking-tight">Delivery in Progress</h2>
+                 <p className="text-[11px] font-bold text-slate-400 mt-1">We will deliver your order soon</p>
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-950 tracking-widest">Share Bill</span>
-           </motion.div>
-           <motion.div 
-            whileTap={{ scale: 0.95 }}
-            onClick={() => navigate('/orders')}
-            className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex flex-col items-center gap-4 cursor-pointer"
-           >
-              <div className="bg-emerald-50 p-4 rounded-2xl">
-                 <TrendingUp className="h-6 w-6 text-emerald-600" />
+              <div className="bg-[#FAF9FF] p-3 rounded-2xl border border-[#5E3192]/5 text-center">
+                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Arriving in</p>
+                 <p className="text-sm font-black text-[#5E3192]">10 mins</p>
               </div>
-              <span className="text-[10px] font-black uppercase text-slate-950 tracking-widest">Track Now</span>
-           </motion.div>
+           </div>
+
+           <div className="relative px-2">
+              <div className="absolute top-5 left-8 right-8 h-[2px] bg-slate-100 -z-0" />
+              <div 
+                className="absolute top-5 left-8 h-[2px] bg-[#5E3192] transition-all duration-1000 -z-0" 
+                style={{ width: `${(currentStatusIndex - 1) * 33}%` }}
+              />
+
+              <div className="flex justify-between items-start relative z-10 text-center">
+                 {[
+                   { id: 1, label: 'Placed', icon: ShoppingBag, time: orderTimeFormatted },
+                   { id: 2, label: 'Confirmed', icon: Sparkles, time: 'Confirming...' },
+                   { id: 3, label: 'Out for Delivery', icon: Zap, time: '' },
+                   { id: 4, label: 'Delivered', icon: CheckCircle2, time: '' }
+                 ].map((step, i) => {
+                   const isActive = currentStatusIndex >= step.id;
+                   return (
+                     <div key={step.id} className="flex flex-col items-center gap-3">
+                        <div className={cn(
+                          "h-10 w-10 rounded-full flex items-center justify-center border-4 transition-all",
+                          isActive ? "bg-[#5E3192] border-white shadow-lg text-white" : "bg-white border-slate-50 text-slate-200"
+                        )}>
+                           <step.icon className="h-5 w-5" />
+                        </div>
+                        <div className="space-y-1">
+                           <p className={cn("text-[10px] font-black uppercase tracking-tight", isActive ? "text-slate-900" : "text-slate-300")}>
+                             {step.label}
+                           </p>
+                           {step.time && (
+                             <p className="text-[9px] font-bold text-[#5E3192]">{step.time}</p>
+                           )}
+                        </div>
+                     </div>
+                   );
+                 })}
+              </div>
+           </div>
+        </div>
+
+        {/* 🔹 ORDER ITEMS CARD */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+           <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                 <Package className="h-5 w-5" />
+              </div>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Order Items ({order?.order_items?.length})</h2>
+           </div>
+
+           <div className="divide-y divide-slate-50">
+              {order?.order_items?.map((item: any) => (
+                <div key={item.id} className="py-4 flex items-center gap-4 px-2">
+                   <div className="w-14 h-14 bg-slate-50 rounded-xl border border-slate-100 p-1 flex-shrink-0">
+                      <img src={item.products?.image_url} alt={item.products?.name} className="w-full h-full object-contain" />
+                   </div>
+                   <div className="flex-grow min-w-0">
+                      <h3 className="text-[13px] font-black text-slate-800 leading-tight truncate">{item.products?.name}</h3>
+                      <p className="text-[11px] font-bold text-slate-400 mt-1">1 kg</p>
+                   </div>
+                   <div className="text-right">
+                      <p className="text-sm font-black text-slate-900">₹{item.price * item.quantity}</p>
+                      <p className="text-[11px] font-bold text-slate-400 mt-1">Qty: {item.quantity}</p>
+                   </div>
+                </div>
+              ))}
+           </div>
+
+           <div className="mt-4 pt-6 border-t border-slate-50 flex items-center justify-between">
+              <button className="text-[11px] font-black text-[#5E3192] uppercase tracking-widest flex items-center gap-1">
+                 View Bill Details <ChevronRight className="h-4 w-4" />
+              </button>
+              <div className="flex items-baseline gap-2">
+                 <span className="text-[13px] font-bold text-slate-400 tracking-tight">Total Paid</span>
+                 <span className="text-2xl font-black text-[#5E3192]">₹{order?.total_amount}</span>
+              </div>
+           </div>
+        </div>
+
+        {/* 🔹 DELIVERY ADDRESS CARD */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-50">
+           <div className="flex items-center gap-3 mb-6">
+              <div className="h-10 w-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400">
+                 <MapPin className="h-5 w-5" />
+              </div>
+              <h2 className="text-sm font-black text-slate-900 uppercase tracking-tight">Delivery Address</h2>
+           </div>
+
+           <div className="flex flex-col md:flex-row gap-6">
+              <div className="flex-grow space-y-4">
+                 <div className="space-y-1">
+                    <p className="text-[13px] font-black text-slate-900">{order?.users?.name || 'Vexokart User'}</p>
+                    <p className="text-xs font-medium text-slate-500 leading-relaxed max-w-[280px]">
+                       {order?.address}
+                    </p>
+                 </div>
+                 <p className="text-[13px] font-black text-[#5E3192]">+91 98765 43210</p>
+              </div>
+
+              <div className="shrink-0 flex flex-col justify-end">
+                 <button className="bg-[#F5F1FF] text-[#5E3192] px-6 py-3 rounded-2xl flex items-center gap-2 text-xs font-black uppercase tracking-widest transition-all">
+                    <MapPin className="h-4 w-4" />
+                    View on Map
+                 </button>
+              </div>
+           </div>
+        </div>
+
+        {/* 🔹 SAVINGS BANNER */}
+        <div className="bg-[#FAF7FF] rounded-[2rem] p-6 border border-[#5E3192]/5 flex items-center justify-between gap-4">
+           <div className="flex items-center gap-4">
+              <div className="w-16 h-16 flex items-center justify-center relative overflow-hidden">
+                 {/* This would be an icon or gift box as shown in mockup */}
+                 <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                    <Sparkles className="h-6 w-6 text-amber-600" />
+                 </div>
+              </div>
+              <div>
+                 <p className="text-[13px] font-black text-slate-900">Yay! You saved ₹{savedAmount} on this order</p>
+                 <p className="text-[11px] font-medium text-slate-500 mt-1">You saved with offers & free delivery 🎊</p>
+              </div>
+           </div>
+           <ChevronRight className="h-5 w-5 text-[#5E3192]" />
         </div>
       </div>
 
       {/* 🔹 BOTTOM ACTION BUTTONS */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-slate-100 px-6 py-6 z-50 shadow-[0_-20px_40px_rgba(0,0,0,0.05)]">
-        <div className="max-w-2xl mx-auto flex items-center gap-4">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-6 z-50 shadow-[0_-20px_50px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto flex items-center gap-4">
            <button 
-             onClick={() => navigate('/orders')}
-             className="flex-1 h-16 border-2 border-slate-900 text-slate-900 rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] hover:bg-slate-50 active:scale-95 transition-all shadow-sm"
+             onClick={() => navigate('/home')}
+             className="flex-1 h-16 bg-white border-2 border-slate-100 text-slate-900 rounded-[1.5rem] font-black text-xs uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all"
            >
-             Order History
+             Continue Shopping
            </button>
            <button 
-            onClick={() => navigate('/home')}
-            className="flex-1 h-16 bg-emerald-600 text-white rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-[0_20px_40px_-5px_rgba(5,150,105,0.3)] active:scale-95 transition-all"
+            onClick={() => navigate('/orders')}
+            className="flex-1 h-16 bg-[#5E3192] text-white rounded-[1.5rem] font-black text-xs uppercase tracking-widest shadow-xl shadow-purple-900/20 active:scale-95 transition-all flex items-center justify-center gap-2"
           >
-            Go Back Home
+            Track Order
+            <ChevronRight className="h-4 w-4 rotate-0" />
           </button>
         </div>
       </div>
