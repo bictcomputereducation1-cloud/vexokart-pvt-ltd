@@ -60,6 +60,9 @@ export interface Vendor {
   store_name: string;
   email: string;
   phone: string;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   service_area_id: string | null;
   is_active: boolean;
   created_at: string;

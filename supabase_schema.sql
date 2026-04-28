@@ -15,6 +15,9 @@ CREATE TABLE vendors (
   user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL UNIQUE,
   store_name TEXT NOT NULL,
   phone TEXT NOT NULL,
+  address TEXT,
+  latitude DECIMAL(10, 8),
+  longitude DECIMAL(11, 8),
   service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL

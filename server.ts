@@ -183,9 +183,9 @@ async function startServer() {
 
   app.post("/api/admin/vendors", async (req, res) => {
     try {
-      const { email, password, storeName, phone, service_area_id } = req.body;
+      const { email, password, storeName, phone, service_area_id, latitude, longitude, address } = req.body;
 
-      if (!email || !password || !storeName || !phone || !service_area_id) {
+      if (!email || !password || !storeName || !phone) {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -223,6 +223,21 @@ async function startServer() {
         }
       }
 
+      // Resolve Service Area if not provided but lat/lng is available
+      let targetAreaId = service_area_id;
+      if (!targetAreaId && latitude && longitude) {
+        const { data: areas } = await supabase.from('serviceable_areas').select('*').eq('is_active', true);
+        if (areas) {
+          // Simplistic nearest match
+          const nearest = areas.reduce((prev, curr) => {
+            const distPrev = Math.sqrt(Math.pow(prev.latitude - latitude, 2) + Math.pow(prev.longitude - longitude, 2));
+            const distCurr = Math.sqrt(Math.pow(curr.latitude - latitude, 2) + Math.pow(curr.longitude - longitude, 2));
+            return distPrev < distCurr ? prev : curr;
+          });
+          targetAreaId = nearest.id;
+        }
+      }
+
       // 2. Insert/Update users table as vendor (handling potential trigger race conditions)
       const { error: userError } = await supabase
         .from("users")
@@ -245,7 +260,10 @@ async function startServer() {
           user_id: userId,
           store_name: storeName,
           phone: phone,
-          service_area_id: service_area_id,
+          service_area_id: targetAreaId,
+          latitude: latitude,
+          longitude: longitude,
+          address: address,
           is_active: true,
         });
 
