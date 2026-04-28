@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ServiceableArea } from '../types';
-import { MapPin, Plus, Trash2, Edit2, Loader2, Save, X, Navigation, Globe } from 'lucide-react';
+import { MapPin, Plus, Trash2, Edit2, Loader2, Save, X, Navigation, Globe, Map as MapIcon } from 'lucide-react';
 import { toast } from 'sonner';
+import { LocationPicker } from '../components/LocationPicker';
 
 export default function AdminAreas() {
   const [areas, setAreas] = useState<ServiceableArea[]>([]);
@@ -10,6 +11,7 @@ export default function AdminAreas() {
   const [saving, setSaving] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(true);
 
   const [formData, setFormData] = useState({
     city: '',
@@ -99,77 +101,99 @@ export default function AdminAreas() {
 
       {(isAdding || editingId) && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95">
+          <div className="bg-white w-full max-w-4xl rounded-[2.5rem] p-8 shadow-2xl animate-in zoom-in-95 overflow-y-auto max-h-[90vh]">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black tracking-tight">{editingId ? 'Edit Area' : 'New Service Area'}</h2>
               <button onClick={() => { setIsAdding(false); setEditingId(null); }} className="p-2 bg-slate-50 rounded-xl"><X className="h-5 w-5" /></button>
             </div>
             
-            <form onSubmit={handleSave} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">City / Region Name</label>
-                <input 
-                  required
-                  value={formData.city}
-                  onChange={e => setFormData({...formData, city: e.target.value})}
-                  className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
-                  placeholder="e.g. Sopore Cental"
-                />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Map Section */}
+              <div className="space-y-4">
+                <div className="relative h-[300px] md:h-[400px] rounded-[2rem] overflow-hidden border-4 border-slate-50 shadow-inner group">
+                  <LocationPicker 
+                    initialLocation={editingId ? { 
+                      lat: areas.find(a => a.id === editingId)?.latitude || 34.1691, 
+                      lng: areas.find(a => a.id === editingId)?.longitude || 74.4556 
+                    } : undefined}
+                    onLocationSelected={({ lat, lng, city, pincode }) => {
+                      setFormData(prev => ({
+                        ...prev,
+                        latitude: lat,
+                        longitude: lng,
+                        city: city || prev.city,
+                        pincode: pincode || prev.pincode
+                      }));
+                    }}
+                  />
+                </div>
+                <p className="text-[10px] font-bold text-slate-400 text-center uppercase tracking-widest px-4">
+                  Drag the map to pinpoint the center of the service area
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              {/* Form Section */}
+              <form onSubmit={handleSave} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Pincode</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">City / Region Name</label>
                   <input 
                     required
-                    value={formData.pincode}
-                    onChange={e => setFormData({...formData, pincode: e.target.value})}
+                    value={formData.city}
+                    onChange={e => setFormData({...formData, city: e.target.value})}
                     className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
+                    placeholder="e.g. Sopore Cental"
                   />
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Radius (km)</label>
-                  <input 
-                    type="number"
-                    required
-                    value={formData.radius_km}
-                    onChange={e => setFormData({...formData, radius_km: Number(e.target.value)})}
-                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Latitude</label>
-                  <input 
-                    type="number" step="any"
-                    required
-                    value={formData.latitude || ''}
-                    onChange={e => setFormData({...formData, latitude: Number(e.target.value)})}
-                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Pincode</label>
+                    <input 
+                      required
+                      value={formData.pincode}
+                      onChange={e => setFormData({...formData, pincode: e.target.value})}
+                      className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
+                      placeholder="193201"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Radius (km)</label>
+                    <input 
+                      type="number"
+                      required
+                      value={formData.radius_km}
+                      onChange={e => setFormData({...formData, radius_km: Number(e.target.value)})}
+                      className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Longitude</label>
-                  <input 
-                    type="number" step="any"
-                    required
-                    value={formData.longitude || ''}
-                    onChange={e => setFormData({...formData, longitude: Number(e.target.value)})}
-                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
-                  />
-                </div>
-              </div>
 
-              <button 
-                type="submit"
-                disabled={saving}
-                className="w-full bg-black text-primary h-14 rounded-2xl font-black text-sm uppercase tracking-widest mt-4 flex items-center justify-center gap-2"
-              >
-                {saving ? <Loader2 className="animate-spin" /> : <><Save className="h-5 w-5" /> {editingId ? 'Update Area' : 'Create Area'}</>}
-              </button>
-            </form>
+                <div className="bg-slate-50 rounded-2xl p-4 space-y-2 border border-slate-100">
+                  <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    <span>Coordinates (Auto)</span>
+                    <Globe className="h-3 w-3" />
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <span className="text-[9px] font-bold text-slate-400 block mb-1">LAT</span>
+                      <p className="text-sm font-mono font-bold text-slate-700">{formData.latitude?.toFixed(6) || 'None'}</p>
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-[9px] font-bold text-slate-400 block mb-1">LNG</span>
+                      <p className="text-sm font-mono font-bold text-slate-700">{formData.longitude?.toFixed(6) || 'None'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={saving || !formData.latitude}
+                  className="w-full bg-black text-primary h-14 rounded-2xl font-black text-sm uppercase tracking-widest mt-4 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="animate-spin" /> : <><Save className="h-5 w-5" /> {editingId ? 'Update Area' : 'Create Area'}</>}
+                </button>
+              </form>
+            </div>
           </div>
         </div>
       )}

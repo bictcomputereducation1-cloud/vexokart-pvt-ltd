@@ -22,7 +22,7 @@ import { ProductCard } from '../components/ProductCard';
 export default function CategoryProducts() {
   const { identifier } = useParams<{ identifier: string }>();
   const navigate = useNavigate();
-  const { addToCart, items, removeFromCart } = useCart();
+  const { addToCart, items, removeFromCart, getItemQuantity } = useCart();
   
   const [products, setProducts] = useState<Product[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -127,10 +127,6 @@ export default function CategoryProducts() {
   const filteredProducts = selectedSubId === 'all' 
     ? products 
     : products.filter(p => p.subcategory_id === selectedSubId);
-
-  const getItemQuantity = (productId: string) => {
-    return items.find(i => i.id === productId)?.quantity || 0;
-  };
 
   if (loading) {
     return (

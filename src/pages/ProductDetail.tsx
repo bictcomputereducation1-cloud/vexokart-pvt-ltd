@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
 import { Product } from '../types';
 import { useCart } from '../CartContext';
 import { motion, AnimatePresence } from 'motion/react';
+import { ProductCard } from '../components/ProductCard';
 import { 
   ArrowLeft, 
   Star, 
@@ -31,17 +32,19 @@ export default function ProductDetail() {
   const [recommended, setRecommended] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState('1 kg');
   const [isDescExpanded, setIsDescExpanded] = useState(false);
-  const { items, addToCart, totalItems, finalTotal } = useCart();
-  const { pincode, city, setIsModalOpen } = useDeliveryLocation();
+  const { items, addToCart, removeFromCart, getItemQuantity } = useCart();
+  const { address, city } = useDeliveryLocation();
   const navigate = useNavigate();
 
-  const isInCart = items.some(item => item.id === id);
+  const itemQty = getItemQuantity(id || '');
 
-  const sizes = ['500g', '1kg', '2kg', '5kg'];
+  const sizes = ['1 kg', '2 kg', '5 kg', '10 kg'];
 
   useEffect(() => {
     if (id) fetchProduct();
+    window.scrollTo(0, 0);
   }, [id]);
 
   const fetchProduct = async () => {
@@ -75,251 +78,281 @@ export default function ProductDetail() {
 
   if (loading) return (
     <div className="py-20 flex flex-col items-center justify-center space-y-4">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      <div className="w-12 h-12 border-4 border-[#5E3192] border-t-transparent rounded-full animate-spin" />
       <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Loading item details...</p>
     </div>
   );
   if (!product) return null;
 
-  const oldPrice = product.original_price || product.price;
+  const oldPrice = product.original_price || Math.round(product.price * 1.25);
   const savings = Math.max(0, oldPrice - product.price);
-  const discountPercent = oldPrice > product.price ? Math.round((savings / oldPrice) * 100) : 0;
-
-  const handleBuyNow = () => {
-    addToCart(product);
-    navigate('/checkout');
-  };
+  const discountPercent = Math.round((savings / oldPrice) * 100);
 
   return (
-    <div className="bg-white min-h-screen pb-40">
-      {/* 🔹 PREMIUM HEADER REMOVED - NOW USING GLOBAL NAVBAR */}
-      
-      <div className="max-w-2xl mx-auto">
-        {/* 🔹 BREADCRUMB */}
-        <div className="px-4 py-3 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-           <span>Home</span>
-           <ChevronRight className="h-3 w-3" />
-           <span className="line-clamp-1">{(product as any).categories?.name || 'Category'}</span>
-           <ChevronRight className="h-3 w-3" />
-           <span className="text-slate-900 truncate">{product.name}</span>
-        </div>
-
-        {/* 🔹 MAIN PRODUCT SECTION */}
-        <div className="px-4 pb-8">
-          <div className="relative bg-slate-50 rounded-[2.5rem] p-10 flex flex-col items-center mb-6">
-            <div className="absolute top-6 left-6 z-10 bg-red-500 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg shadow-red-100 uppercase tracking-widest">
-              {discountPercent}% OFF
+    <div className="bg-[#F8F9FB] min-h-screen pb-40 font-sans">
+      {/* 🔹 STICKY HEADER */}
+      <header className="sticky top-0 z-50 bg-[#5E3192] text-white pt-2 pb-4">
+        <div className="px-4 flex items-center h-14 gap-3">
+          <button onClick={() => navigate(-1)} className="p-2 -ml-2 bg-white/10 rounded-full">
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          
+          <div className="flex-grow flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-white/10 flex items-center justify-center">
+              <MapPin className="h-4 w-4" />
             </div>
-            
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="w-full aspect-square flex items-center justify-center"
-            >
-              <img 
-                src={product.image_url} 
-                alt={product.name}
-                className="max-w-full max-h-full object-contain drop-shadow-2xl hover:scale-105 transition-transform duration-700"
-              />
-            </motion.div>
-
-            {/* Thumbnail Scroll */}
-            <div className="flex gap-3 mt-8 overflow-x-auto pb-2 no-scrollbar px-4 w-full justify-center">
-              {[1,2,3].map(i => (
-                <div key={i} className={cn(
-                  "h-14 w-14 shrink-0 rounded-2xl border-2 flex items-center justify-center bg-white p-2 transition-all cursor-pointer",
-                  i === 1 ? "border-green-500 shadow-lg shadow-green-100" : "border-slate-100 hover:border-slate-200"
-                )}>
-                  <img src={product.image_url} alt="" className="w-full h-full object-contain" />
-                </div>
-              ))}
+            <div className="flex flex-col">
+              <span className="text-[10px] font-bold text-white/70 leading-none">Delivering in 10 mins</span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-black tracking-tight line-clamp-1 max-w-[150px]">
+                  {address || 'Set Location...'}
+                </span>
+                <ChevronRight className="h-3 w-3 rotate-90" />
+              </div>
             </div>
           </div>
 
-          {/* Product Header Info */}
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-green-600">Coca Cola</p>
-              <h1 className="text-3xl font-black text-slate-900 leading-tight tracking-tight">
-                {product.name}
-              </h1>
-              <div className="flex items-center gap-4">
-                <span className="text-sm font-black text-green-600">2.25L</span>
-                <div className="flex items-center gap-1 bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-[10px] font-black">
-                  <Star className="h-3.5 w-3.5 fill-current" /> 4.6 (12,345 ratings)
-                </div>
+          <div className="flex items-center gap-2">
+            <button className="p-2 bg-white/10 rounded-full"><Share2 className="h-5 w-5" /></button>
+            <button className="p-2 bg-white/10 rounded-full"><Heart className="h-5 w-5" /></button>
+            <Link to="/cart" className="p-2 bg-white/10 rounded-full relative">
+              <ShoppingCart className="h-5 w-5" />
+              <div className="absolute -top-1 -right-1 bg-white text-[#5E3192] text-[9px] font-black h-5 w-5 flex items-center justify-center rounded-full border-2 border-[#5E3192]">
+                6
+              </div>
+            </Link>
+          </div>
+        </div>
+
+        {/* Search Bar in Header */}
+        <div className="px-4 mt-1">
+           <div className="bg-white rounded-full h-12 flex items-center px-4 shadow-lg">
+             <Search className="h-5 w-5 text-slate-400 mr-2" />
+             <input 
+               type="text" 
+               placeholder="Search for atta, dal, rice, oil..." 
+               className="bg-transparent flex-grow text-sm font-medium text-slate-700 outline-none"
+             />
+             <div className="h-8 w-8 rounded-full bg-[#5E3192] flex items-center justify-center text-white">
+                <Search className="h-4 w-4" />
+             </div>
+           </div>
+        </div>
+      </header>
+
+      <div className="max-w-4xl mx-auto space-y-3 p-3">
+        {/* 🔹 MAIN PRODUCT CARD */}
+        <div className="bg-white rounded-[2rem] p-6 shadow-sm relative overflow-hidden">
+          {/* Image Section */}
+          <div className="flex flex-col md:flex-row gap-8">
+            <div className="w-full md:w-1/2 relative">
+              <div className="absolute top-0 left-0 bg-[#5E3192] text-white text-[12px] font-black px-4 py-3 rounded-br-[1.5rem] rounded-tl-[1.5rem] z-10 flex flex-col items-center">
+                <span>{discountPercent}%</span>
+                <span className="text-[10px]">OFF</span>
+              </div>
+              
+              <div className="aspect-square flex items-center justify-center p-4">
+                <img 
+                  src={product.image_url} 
+                  alt={product.name}
+                  className="max-h-full object-contain"
+                />
+              </div>
+              
+              {/* Carousel Dots */}
+              <div className="flex justify-center gap-1.5 mt-2">
+                <div className="w-6 h-1.5 rounded-full bg-[#5E3192]" />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
               </div>
             </div>
 
-            {/* 🔹 FEATURE BOXES */}
-            <div className="grid grid-cols-3 gap-3 py-2">
-              {[
-                { icon: ShieldCheck, title: "100% Original", sub: "Best Quality" },
-                { icon: Zap, title: "Fast Delivery", sub: "30-45 mins" },
-                { icon: PackageCheck, title: "Secure Pack", sub: "Safe Delivery" }
-              ].map((f, i) => (
-                <div key={i} className="bg-green-50 rounded-2xl p-3 flex flex-col items-center text-center gap-1.5 border border-green-100">
-                  <f.icon className="h-5 w-5 text-green-600" />
-                  <div className="space-y-0.5">
-                    <p className="text-[9px] font-black text-slate-900 leading-none">{f.title}</p>
-                    <p className="text-[7px] font-bold text-green-700 uppercase tracking-tighter leading-none">{f.sub}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* 🔹 PRICE & QUANTITY */}
-            <div className="flex items-center justify-between py-6 border-y border-slate-100">
-              <div className="flex flex-col">
-                <div className="flex items-end gap-3">
-                  <span className="text-4xl font-black text-green-600 leading-none tracking-tighter">₹{product.price}</span>
-                  {product.original_price && product.original_price > product.price && (
-                    <span className="text-lg text-slate-400 line-through font-bold leading-none">₹{product.original_price}</span>
-                  )}
-                </div>
-                {product.original_price && product.original_price > product.price && (
-                  <div className="mt-2 inline-flex items-center bg-green-100 text-green-700 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                    You Save ₹{savings} ({discountPercent}% OFF)
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center gap-4 bg-slate-100 p-1 rounded-2xl">
-                <button 
-                  onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                  className="h-10 w-10 bg-white rounded-xl flex items-center justify-center text-slate-900 shadow-sm active:scale-90"
-                >
-                  <Minus className="h-4 w-4" />
-                </button>
-                <span className="text-lg font-black text-slate-900 w-4 text-center">{quantity}</span>
-                <button 
-                  onClick={() => setQuantity(quantity + 1)}
-                  className="h-10 w-10 bg-green-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-green-100 active:scale-90"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* 🔹 DYNAMIC CART BUTTON */}
-            <AnimatePresence mode="wait">
-              {!isInCart ? (
-                <motion.button 
-                  key="add-btn"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.05 }}
-                  onClick={() => {
-                    addToCart(product);
-                  }}
-                  className="w-full h-16 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-xs flex items-center justify-center gap-3 shadow-2xl shadow-green-900/20 active:scale-[0.98] transition-all"
-                >
-                  <ShoppingCart className="h-5 w-5" />
-                  Add to Cart
-                </motion.button>
-              ) : (
-                <motion.button 
-                  key="go-btn"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 1.05 }}
-                  onClick={() => navigate('/cart')}
-                  className="w-full h-16 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-[0.15em] text-xs flex flex-col items-center justify-center gap-0.5 shadow-2xl shadow-slate-900/20 active:scale-[0.98] transition-all border border-slate-800"
-                >
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-green-400" />
-                    <span>Go to Cart</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 tracking-widest">
-                    <span>{totalItems} items</span>
-                    <span className="w-1 h-1 bg-slate-700 rounded-full" />
-                    <span>Total ₹{finalTotal}</span>
-                  </div>
-                </motion.button>
-              )}
-            </AnimatePresence>
-
-            {/* 🔹 DESCRIPTION */}
-            <div className="space-y-3 pt-6">
-              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Product Description</h3>
-              <div className="relative">
-                <p className={cn(
-                  "text-xs font-bold text-slate-500 leading-relaxed transition-all duration-300",
-                  !isDescExpanded && "line-clamp-3"
-                )}>
-                  {product.description || "Experience the refreshingly original taste of Coca-Cola, the world's most popular sparkling drink. Perfectly balanced with its signature flavor, it's the ultimate thirst quencher for any occasion. Made with high-quality ingredients, it deliver a consistently crisp and clean taste that has been loved for generations. Best served chilled for the maximum refreshing experience. Open a bottle and share the happiness with your friends and family."}
-                </p>
-                <button 
-                  onClick={() => setIsDescExpanded(!isDescExpanded)}
-                  className="text-green-600 text-[10px] font-black uppercase tracking-widest mt-2 hover:underline"
-                >
-                  {isDescExpanded ? 'Read Less' : 'Read More'}
-                </button>
-              </div>
-            </div>
-
-            {/* 🔹 RECOMMENDED PRODUCTS */}
-            {recommended.length > 0 && (
-              <div className="space-y-6 pt-10">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">You may also like</h3>
-                  <button className="text-green-600 text-[10px] font-black uppercase tracking-widest">View All</button>
-                </div>
+            {/* Info Section */}
+            <div className="w-full md:w-1/2 space-y-4">
+              <div>
+                <h1 className="text-2xl font-black text-slate-900 leading-tight mb-1">{product.name}</h1>
+                <p className="text-lg font-bold text-slate-400 mb-4">{selectedSize}</p>
                 
-                <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar -mx-4 px-4">
-                  {recommended.map(item => (
-                    <div 
-                      key={item.id} 
-                      onClick={() => navigate(`/product/${item.id}`)}
-                      className="min-w-[160px] bg-slate-50 rounded-[2rem] p-4 relative group cursor-pointer"
+                <div className="flex items-center gap-2">
+                   <div className="flex items-center gap-1 bg-amber-50 text-amber-700 font-bold text-[13px] px-3 py-1 rounded-lg border border-amber-100">
+                     <Star className="h-4 w-4 fill-amber-500 text-amber-500" />
+                     <span>4.7</span>
+                   </div>
+                   <span className="text-[13px] font-bold text-slate-400">(12.5K reviews)</span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-4">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-black text-slate-900">₹{product.price}</span>
+                  <span className="text-xl font-bold text-slate-300 line-through">₹{oldPrice}</span>
+                </div>
+                <div className="bg-[#F3E8FF] text-[#5E3192] text-[11px] font-black px-3 py-1 rounded-lg uppercase">
+                  {discountPercent}% OFF
+                </div>
+              </div>
+              <p className="text-[11px] font-bold text-slate-400">Inclusive of all taxes</p>
+
+              {/* Free Delivery Banner */}
+              <div className="bg-[#F5F1FF] rounded-2xl p-4 flex items-center gap-4 border border-[#5E3192]/10">
+                <div className="h-10 w-10 flex items-center justify-center">
+                  <Zap className="h-8 w-8 text-[#5E3192] fill-[#5E3192]/10" />
+                </div>
+                <div>
+                   <p className="text-[13px] font-black text-[#5E3192] uppercase tracking-wide">FREE Delivery</p>
+                   <p className="text-[11px] font-medium text-slate-500">On orders above ₹299</p>
+                </div>
+              </div>
+
+              {/* Quantity Selection */}
+              <div className="space-y-3">
+                <p className="text-sm font-black text-slate-900">Select Quantity</p>
+                <div className="flex flex-wrap gap-2">
+                  {sizes.map(size => (
+                    <button
+                      key={size}
+                      onClick={() => setSelectedSize(size)}
+                      className={cn(
+                        "px-6 py-3 rounded-xl text-xs font-bold transition-all border-2",
+                        selectedSize === size 
+                          ? "bg-[#5E3192] text-white border-[#5E3192] shadow-lg shadow-[#5E3192]/20" 
+                          : "bg-white text-slate-600 border-slate-100 hover:border-slate-200"
+                      )}
                     >
-                      <button className="absolute top-3 right-3 z-10 h-8 w-8 bg-white/80 backdrop-blur-md rounded-full flex items-center justify-center text-slate-300 hover:text-red-500 transition-colors">
-                        <Heart className="h-4 w-4" />
-                      </button>
-                      <div className="w-full aspect-square mb-3 flex items-center justify-center p-2">
-                        <img src={item.image_url} alt="" className="max-h-full object-contain drop-shadow-md group-hover:scale-110 transition-transform" />
-                      </div>
-                      <h4 className="text-[11px] font-black text-slate-800 truncate mb-1">{item.name}</h4>
-                      <p className="text-[9px] font-bold text-slate-400 mb-2">2.25L</p>
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black text-slate-900 italic">₹{item.price}</span>
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); addToCart(item); }}
-                          className="h-8 w-8 bg-green-600 rounded-xl flex items-center justify-center text-white shadow-lg active:scale-90 transition-all"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
+                      {size}
+                    </button>
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* 🔹 BOTTOM INFO STRIP */}
-            <div className="grid grid-cols-2 gap-y-6 gap-x-10 py-12">
-               {[
-                 { icon: ShieldCheck, text: "Best Quality", sub: "100% Assurance" },
-                 { icon: Clock, text: "Fast Delivery", sub: "30-45 Mins" },
-                 { icon: ArrowLeft, text: "Easy Returns", sub: "No Questions Asked" },
-                 { icon: PackageCheck, text: "Secure Payment", sub: "PCI-DSS Compliant" }
-               ].map((item, i) => (
-                 <div key={i} className="flex items-center gap-3">
-                   <div className="h-10 w-10 rounded-xl bg-slate-50 flex items-center justify-center text-slate-400">
-                     <item.icon className="h-5 w-5" />
-                   </div>
-                   <div>
-                     <p className="text-[10px] font-black text-slate-900 leading-none">{item.text}</p>
-                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter mt-1">{item.sub}</p>
-                   </div>
-                 </div>
-               ))}
             </div>
           </div>
         </div>
+
+        {/* 🔹 FEATURE BADGES */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { icon: ShieldCheck, title: "100% Original", sub: "Products", color: "text-purple-600", bg: "bg-purple-50" },
+            { icon: Star, title: "Best Quality", sub: "You Can Trust", color: "text-indigo-600", bg: "bg-indigo-50" },
+            { icon: Zap, title: "Fast Delivery", sub: "in 10 Minutes", color: "text-blue-600", bg: "bg-blue-50" },
+            { icon: PackageCheck, title: "Secure Packaging", sub: "& Safe Delivery", color: "text-pink-600", bg: "bg-pink-50" }
+          ].map((item, i) => (
+            <div key={i} className="bg-white rounded-2xl p-4 flex items-center gap-3 border border-slate-100 shadow-sm">
+               <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center shrink-0", item.bg)}>
+                 <item.icon className={cn("h-6 w-6", item.color)} />
+               </div>
+               <div className="min-w-0">
+                 <p className="text-[11px] font-black text-slate-900 leading-none truncate">{item.title}</p>
+                 <p className="text-[9px] font-bold text-slate-400 mt-1 truncate">{item.sub}</p>
+               </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 🔹 PRODUCT DETAILS */}
+        <div className="bg-white rounded-[2rem] p-8 shadow-sm space-y-8">
+           <div className="space-y-4">
+             <h3 className="text-lg font-black text-slate-900">Product Details</h3>
+             <p className="text-sm font-medium text-slate-500 leading-relaxed">
+               {product.description || "Aashirvaad Select Basmati Rice is the finest quality basmati rice known for its exquisite aroma, long grains and rich taste. Perfect for Biryani, Pulao and everyday meals."}
+             </p>
+             <ul className="space-y-2">
+               {[
+                 "Extra long grain",
+                 "Aromatic & Flavourful",
+                 "Perfect for Biryani, Pulao & Everyday Meals",
+                 "Naturally Aged for Superior Taste"
+               ].map((text, i) => (
+                 <li key={i} className="flex items-center gap-3 text-sm font-bold text-slate-800">
+                    <CheckCircle2 className="h-4 w-4 text-[#5E3192]" />
+                    {text}
+                 </li>
+               ))}
+             </ul>
+           </div>
+
+           {/* Table Specs */}
+           <div className="bg-[#FAF9FF] rounded-[2rem] p-6 space-y-4 border border-[#5E3192]/5">
+              <div className="space-y-4">
+                {[
+                  { label: "Brand", value: "Aashirvaad" },
+                  { label: "Type", value: "Basmati Rice" },
+                  { label: "Weight", value: "1 kg" },
+                  { label: "Speciality", value: "Aromatic" },
+                  { label: "Shelf Life", value: "12 Months" }
+                ].map((spec, i) => (
+                  <div key={i} className="flex justify-between items-center text-sm">
+                    <span className="font-bold text-slate-400">{spec.label}</span>
+                    <span className="font-bold text-slate-900">{spec.value}</span>
+                  </div>
+                ))}
+              </div>
+              <button className="w-full flex items-center justify-center gap-2 text-[#5E3192] text-sm font-black uppercase tracking-widest pt-4 border-t border-[#5E3192]/10 mt-4">
+                View More <ChevronRight className="h-4 w-4 rotate-90" />
+              </button>
+           </div>
+        </div>
+
+        {/* 🔹 RECOMMENDATIONS */}
+        {recommended.length > 0 && (
+          <div className="space-y-6 pt-10 px-1">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-slate-900">You may also like</h3>
+              <button className="text-[#C49B3B] text-sm font-black flex items-center gap-1">See All <ChevronRight className="h-4 w-4" /></button>
+            </div>
+            
+            <div className="flex gap-4 overflow-x-auto pb-6 no-scrollbar -mx-4 px-4">
+              {recommended.map(item => (
+                <div key={item.id} className="min-w-[170px] max-w-[170px]">
+                  <ProductCard product={item} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* 🔹 STICKY FOOTER REMOVED FOR CLEAN SINGLE BUTTON UI */}
+      {/* 🔹 STICKY FOOTER */}
+      <footer className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-slate-100 p-4 pb-8 shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+        <div className="max-w-4xl mx-auto flex items-center justify-between gap-6">
+          <div className="flex flex-col">
+            <div className="flex items-baseline gap-1.5">
+               <span className="text-2xl font-black text-slate-900 leading-none">₹{product.price}</span>
+               <span className="text-sm font-bold text-slate-300 line-through">₹{oldPrice}</span>
+            </div>
+            <p className="text-xs font-black text-emerald-600 mt-1">You save ₹{savings}</p>
+          </div>
+
+          <div className="flex items-center gap-6">
+            <div className="flex items-center bg-[#F8F9FB] rounded-2xl p-1 border border-slate-100 h-14">
+              <button 
+                onClick={() => removeFromCart(product.id)}
+                className="h-12 w-12 flex items-center justify-center text-slate-400 active:scale-90 transition-all font-black text-xl"
+              >
+                −
+              </button>
+              <span className="w-8 text-center font-black text-lg text-slate-900">{itemQty || 1}</span>
+              <button 
+                onClick={() => addToCart(product)}
+                className="h-12 w-12 flex items-center justify-center text-[#5E3192] active:scale-90 transition-all font-black text-xl"
+              >
+                +
+              </button>
+            </div>
+
+            <button 
+              onClick={() => {
+                addToCart(product);
+                toast.success('Added to Cart');
+              }}
+              className="flex-grow min-w-[160px] h-14 bg-[#5E3192] text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-[#5E3192]/20 active:scale-95 transition-all"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              Add to Cart
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

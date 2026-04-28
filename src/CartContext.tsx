@@ -19,6 +19,7 @@ interface CartContextType {
   appliedCoupon: Coupon | null;
   applyCoupon: (code: string) => Promise<void>;
   removeCoupon: () => void;
+  getItemQuantity: (productId: string) => number;
   couponDiscountValue: number;
   freeDeliveryThreshold: number;
   loading: boolean;
@@ -218,6 +219,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     toast.success('Coupon removed');
   };
 
+  const getItemQuantity = useCallback((productId: string) => {
+    return items.find(item => item.id === productId)?.quantity || 0;
+  }, [items]);
+
   const totalItems = items.reduce((sum, item) => sum + item.quantity, 0);
   const totalMRP = items.reduce((sum, item) => sum + (item.original_price || item.price) * item.quantity, 0);
   const totalPrice = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
@@ -264,6 +269,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         appliedCoupon,
         applyCoupon,
         removeCoupon,
+        getItemQuantity,
         couponDiscountValue,
         freeDeliveryThreshold,
         loading
