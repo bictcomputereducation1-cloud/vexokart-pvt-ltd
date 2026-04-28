@@ -150,8 +150,7 @@ async function startServer() {
           payment_status: 'paid',
           payment_id: razorpay_payment_id,
           razorpay_order_id: razorpay_order_id,
-          address: address,
-          pincode: pincode
+          address: address
         }])
         .select()
         .single();

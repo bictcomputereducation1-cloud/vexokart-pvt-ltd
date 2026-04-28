@@ -18,15 +18,32 @@ export default function VendorDashboard() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
+    // Prime the audio on first interaction
+    const unlockAudio = () => {
+      const silentAudio = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
+      silentAudio.volume = 0;
+      silentAudio.play().then(() => {
+        console.log("Audio unlocked for Vendor Dashboard");
+        window.removeEventListener('click', unlockAudio);
+        window.removeEventListener('touchstart', unlockAudio);
+      }).catch(e => console.warn("Audio unlock failed on dashboard interaction", e));
+    };
+    window.addEventListener('click', unlockAudio);
+    window.addEventListener('touchstart', unlockAudio);
+
     if (profile?.id) {
       fetchVendorOrders();
     }
+
+    return () => {
+      window.removeEventListener('click', unlockAudio);
+      window.removeEventListener('touchstart', unlockAudio);
+    };
   }, [profile]);
 
   useEffect(() => {
-    // Initialize audio
-    audioRef.current = new Audio('/sounds/alert.mp3');
-    audioRef.current.volume = 1.0;
+    // We don't initialize here to avoid autoplay blocks.
+    // Instead, we'll try to play when the order arrives.
 
     if (!vendorData?.id) return;
 
@@ -60,13 +77,29 @@ export default function VendorDashboard() {
     // Set alert
     setNewOrderAlert(order);
     
-    // Play sound
-    if (audioRef.current) {
-      audioRef.current.play().catch(err => {
-        console.warn('Audio playback failed (interaction required?):', err);
-        toast.info('New Order Received! (Sound blocked by browser)');
+    // Play sound with robust error handling
+    console.log("Playing alert sound from external URL");
+    const audioUrl = 'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg';
+    const audio = new Audio(audioUrl);
+    audio.volume = 1.0;
+    
+    audio.play().catch(err => {
+      console.warn('Audio playback failed (interaction required?):', err);
+      // Browser most likely blocked autoplay. 
+      // We can try to play it on the next user interaction (first click)
+      const playOnInteraction = () => {
+        console.log("Playing sound on first user interaction");
+        audio.play().catch(e => console.error("Still failed to play sound:", e));
+        window.removeEventListener('click', playOnInteraction);
+        window.removeEventListener('touchstart', playOnInteraction);
+      };
+      window.addEventListener('click', playOnInteraction);
+      window.addEventListener('touchstart', playOnInteraction);
+      toast.info('New Order Received! Sound blocked - click anywhere to enable alerts.', { 
+        duration: 5000,
+        position: 'top-center'
       });
-    }
+    });
 
     // Auto-dismiss alert after 10 seconds
     setTimeout(() => {
@@ -190,7 +223,7 @@ export default function VendorDashboard() {
         {!audioRef.current && (
            <button 
             onClick={() => {
-              audioRef.current = new Audio('/sounds/alert.mp3');
+              audioRef.current = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
               audioRef.current.play().catch(() => {});
             }}
             className="text-xs font-bold text-slate-400 hover:text-primary underline"
