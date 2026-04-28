@@ -80,36 +80,75 @@ export default function Checkout() {
   const checkServiceability = async (address: Address) => {
     setVendorLoading(true);
     try {
-      // 1. Find the service area first
-      const { data: area, error: areaError } = await supabase
+      // 1. Find the service area
+      let areaId: string | null = null;
+      
+      // A. check by pincode first
+      const { data: areaByPincode, error: areaError } = await supabase
         .from('serviceable_areas')
-        .select('id')
+        .select('id, latitude, longitude, radius_km')
         .eq('pincode', address.pincode)
         .eq('is_active', true)
         .maybeSingle();
 
       if (areaError) throw areaError;
 
-      if (!area) {
+      if (areaByPincode) {
+        areaId = areaByPincode.id;
+      } else if (address.latitude && address.longitude) {
+        // B. check by coordinates if pincode didn't match (optional/fallback)
+        const { data: allAreas } = await supabase
+          .from('serviceable_areas')
+          .select('id, latitude, longitude, radius_km')
+          .eq('is_active', true);
+        
+        if (allAreas) {
+          for (const area of allAreas) {
+            if (area.latitude && area.longitude && area.radius_km) {
+              const dist = calculateDistance(
+                Number(address.latitude), 
+                Number(address.longitude), 
+                Number(area.latitude), 
+                Number(area.longitude)
+              );
+              if (dist <= Number(area.radius_km)) {
+                areaId = area.id;
+                break;
+              }
+            }
+          }
+        }
+      }
+
+      if (!areaId) {
         setIsPincodeServiceable(false);
         setTargetAreaId(null);
         setNearestVendorId(null);
         return;
       }
 
-      setTargetAreaId(area.id);
+      setTargetAreaId(areaId);
 
       // 2. Fetch all active vendors in this area
-      const { data: vendors, error } = await supabase
+      const { data: vendors, error: vendorError, status: vendorStatus, statusText: vendorStatusText } = await supabase
         .from('vendors')
         .select('user_id, latitude, longitude')
-        .eq('service_area_id', area.id)
+        .eq('service_area_id', areaId)
         .eq('is_active', true);
 
-      if (error) throw error;
+      if (vendorError) {
+        console.error('Fetch Vendors Error:', {
+          error: vendorError,
+          status: vendorStatus,
+          statusText: vendorStatusText,
+          areaId
+        });
+        throw vendorError;
+      }
 
       if (!vendors || vendors.length === 0) {
-        setIsPincodeServiceable(false);
+        console.warn(`No active vendors found for area ${areaId}`);
+        setIsPincodeServiceable(false); // No vendor available is treated as unserviceable for now
         setNearestVendorId(null);
         return;
       }
@@ -477,7 +516,7 @@ export default function Checkout() {
                 <p className="text-[10px] font-black uppercase text-red-900 tracking-tight">
                   {areaServiceable === false 
                     ? "Service not available at this area. Choose another spot." 
-                    : `No vendor found in your area (${selectedAddress.pincode})`}
+                    : `No vendor available in your area (${selectedAddress.pincode})`}
                 </p>
              </div>
            )}
