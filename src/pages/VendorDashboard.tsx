@@ -117,10 +117,12 @@ export default function VendorDashboard() {
         .single();
         
       if (vendorError || !vendor) {
+        console.warn('No vendor record found for user:', profile?.id);
         setLoading(false);
         return;
       }
 
+      console.log('Vendor found:', vendor.store_name, 'ID:', vendor.id);
       setVendorData(vendor);
       
       // 2. Fetch orders in this vendor's service area
@@ -131,16 +133,24 @@ export default function VendorDashboard() {
         return;
       }
 
-      console.log('Vendor Service Area ID:', vendor.service_area_id);
+      console.log('Fetching orders for Service Area:', vendor.service_area_id, 'and Vendor User ID:', profile?.id);
 
       const { data: orders, error } = await supabase
         .from('orders')
         .select('*, users(name, email)')
         .eq('service_area_id', vendor.service_area_id)
-        .or(`vendor_id.is.null,vendor_id.eq.${vendor.id}`)
+        .or(`vendor_id.is.null,vendor_id.eq.${profile?.id}`)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase query error:', error);
+        throw error;
+      }
+      
+      console.log('Fetched orders count:', orders?.length || 0);
+      if (orders && orders.length > 0) {
+        console.log('Sample order service_area_id:', orders[0].service_area_id);
+      }
       
       setOrders(orders || []);
     } catch (error) {
@@ -155,8 +165,8 @@ export default function VendorDashboard() {
       const updateData: any = { status: newStatus };
       
       // Auto-assign vendor_id if they accept it and it's not already set
-      if (newStatus === 'accepted' && vendorData?.id) {
-        updateData.vendor_id = vendorData.id;
+      if (newStatus === 'accepted' && profile?.id) {
+        updateData.vendor_id = profile.id;
       }
 
       const { error } = await supabase

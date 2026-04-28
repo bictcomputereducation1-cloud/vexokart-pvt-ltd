@@ -87,7 +87,7 @@ export default function Checkout() {
       // 2. Check for active vendors in this area
       const { data: vendor, error } = await supabase
         .from('vendors')
-        .select('id')
+        .select('user_id')
         .eq('service_area_id', area.id)
         .eq('is_active', true)
         .limit(1)
@@ -146,7 +146,7 @@ export default function Checkout() {
 
       const { data: vendor, error: vendorError } = await supabase
         .from('vendors')
-        .select('id')
+        .select('user_id')
         .eq('service_area_id', targetAreaId)
         .eq('is_active', true)
         .limit(1)
@@ -209,7 +209,7 @@ export default function Checkout() {
               discount_amount: couponDiscountValue,
               coupon_code: appliedCoupon?.code,
               delivery_fee: deliveryFee,
-              vendor_id: vendor?.id || null // Pass the found vendor_id
+              vendor_id: vendor?.user_id || null // Pass the found user_id
             });
 
             if (verifyData.success) {
@@ -275,7 +275,7 @@ export default function Checkout() {
 
       const { data: vendor, error: vendorError } = await supabase
         .from('vendors')
-        .select('id')
+        .select('user_id')
         .eq('service_area_id', targetAreaId)
         .eq('is_active', true)
         .limit(1)
@@ -295,7 +295,7 @@ export default function Checkout() {
         .insert([{
           user_id: user?.id,
           total_amount: finalAmount,
-          vendor_id: vendor?.id || null, // Optional if no vendor yet, but area is served
+          vendor_id: vendor?.user_id || null, // Optional if no vendor yet, but area is served
           service_area_id: targetAreaId,
           pincode: selectedAddress.pincode,
           discount_amount: couponDiscountValue,
