@@ -23,6 +23,7 @@ import { useAuth } from '../AuthContext';
 import { useCart } from '../CartContext';
 import { supabase } from '../lib/supabase';
 import { Category, Product } from '../types';
+import { ProductCard } from '../components/ProductCard';
 
 const featureStrip = [
   { icon: Star, label: "Best Quality", sub: "Premium Products", color: "text-amber-500", bg: "bg-amber-50" },
@@ -255,59 +256,45 @@ export default function Home() {
         </div>
       </div>
 
-      {/* 🔹 DEAL OF THE DAY */}
+      {/* 🔹 BEST SELLERS */}
       <div className="mb-10">
         <div className="px-4 flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-             <h3 className="text-xl font-bold text-slate-800 tracking-tight">Deals of the Day</h3>
-             <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full border border-amber-100">
-               <Clock className="h-3.5 w-3.5" />
-               <span className="text-[11px] font-bold">02 : 45 : 12 Left</span>
-             </div>
-          </div>
-          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1 uppercase tracking-widest">
+          <h3 className="text-xl font-bold text-slate-800 tracking-tight">Best Sellers</h3>
+          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1">
             See All <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
         <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
-          {bestSellers.map(p => {
-            const hasDiscount = p.original_price && p.original_price > p.price;
-            const discountPercent = hasDiscount ? Math.round(((p.original_price! - p.price) / p.original_price!) * 100) : 0;
-            
-            return (
-              <div 
-                key={p.id} 
-                className="bg-white rounded-[2rem] p-4 min-w-[170px] shadow-sm border border-slate-100 relative group flex flex-col active:scale-95 transition-all cursor-pointer"
-                onClick={() => navigate(`/product/${p.id}`)}
-              >
-                  {hasDiscount && (
-                    <div className="absolute top-0 left-0 bg-[#C49B3B] text-white text-[9px] font-black px-2 py-3 rounded-br-[1.2rem] rounded-tl-[1.8rem] z-10">
-                      {discountPercent}%<br/>OFF
-                    </div>
-                  )}
-                  <div className="w-full aspect-square mb-3 flex items-center justify-center p-2">
-                    <img src={p.image_url} alt="" className="max-h-full object-contain filter group-hover:scale-110 transition-transform duration-500" />
-                  </div>
-                  <div className="space-y-1">
-                    <h4 className="text-[12px] font-bold text-slate-800 leading-tight line-clamp-1">{p.name}</h4>
-                    <p className="text-[10px] font-medium text-slate-400">2.25L</p>
-                  </div>
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex flex-col">
-                       <span className="text-base font-black text-slate-900 leading-none">₹{p.price}</span>
-                       <span className="text-[10px] text-slate-300 line-through mt-1 font-bold">₹{p.original_price || Math.round(p.price * 1.25)}</span>
-                    </div>
-                    <button 
-                       onClick={(e) => handleAddToCart(e, p)}
-                       className="h-8 w-8 bg-[#C49B3B] rounded-full flex items-center justify-center text-white shadow-lg active:scale-90 transition-all hover:bg-slate-900"
-                    >
-                       <Plus className="h-5 w-5" />
-                    </button>
-                  </div>
-              </div>
-            );
-          })}
+          {bestSellers.map(p => (
+            <div key={p.id} className="min-w-[170px] max-w-[170px]">
+              <ProductCard product={p} />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 🔹 DEAL OF THE DAY */}
+      <div className="mb-10">
+        <div className="px-4 flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+             <h3 className="text-xl font-bold text-slate-800 tracking-tight">Top Deals for You</h3>
+             <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full border border-amber-100">
+               <Clock className="h-3.5 w-3.5" />
+               <span className="text-[11px] font-bold">02 : 45 : 12 Left</span>
+             </div>
+          </div>
+          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1">
+            See All <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
+          {bestSellers.slice().reverse().map(p => (
+            <div key={p.id} className="min-w-[170px] max-w-[170px]">
+              <ProductCard product={p} />
+            </div>
+          ))}
         </div>
       </div>
 
