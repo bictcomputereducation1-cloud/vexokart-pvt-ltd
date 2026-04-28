@@ -43,19 +43,47 @@ export default function AdminAreas() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // 1. VALIDATE INPUT
+    if (!formData.city || !formData.pincode || !formData.latitude || !formData.longitude) {
+      toast.error('Please fill all required fields and select location on map');
+      return;
+    }
+
     setSaving(true);
     try {
+      // 2. EXPLICIT FIELDS
+      const dataToSave = {
+        city: formData.city.trim(),
+        pincode: formData.pincode.trim(),
+        latitude: Number(formData.latitude),
+        longitude: Number(formData.longitude),
+        radius_km: Number(formData.radius_km),
+        is_active: Boolean(formData.is_active)
+      };
+
       if (editingId) {
-        const { error } = await supabase
+        // 3. HANDLE ERROR & UPDATE
+        const { error, status, statusText } = await supabase
           .from('serviceable_areas')
-          .update(formData)
+          .update(dataToSave)
           .eq('id', editingId);
-        if (error) throw error;
+        
+        if (error) {
+          console.error('Supabase Update Error Details:', {
+            error,
+            status,
+            statusText,
+            payload: dataToSave,
+            id: editingId
+          });
+          throw error;
+        }
         toast.success('Area updated');
       } else {
         const { error } = await supabase
           .from('serviceable_areas')
-          .insert([formData]);
+          .insert([dataToSave]);
         if (error) throw error;
         toast.success('Area added');
       }
@@ -63,8 +91,9 @@ export default function AdminAreas() {
       setEditingId(null);
       fetchAreas();
       setFormData({ city: '', pincode: '', latitude: 0, longitude: 0, radius_km: 10, is_active: true });
-    } catch (err) {
-      toast.error('Operation failed');
+    } catch (err: any) {
+      console.error('Operation failed:', err);
+      toast.error(err.message || 'Operation failed');
     } finally {
       setSaving(false);
     }
