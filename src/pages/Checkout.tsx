@@ -181,6 +181,8 @@ export default function Checkout() {
               items: items,
               address: fullAddressText,
               pincode: selectedAddress.pincode,
+              latitude: selectedAddress.latitude,
+              longitude: selectedAddress.longitude,
               discount_amount: couponDiscountValue,
               coupon_code: appliedCoupon?.code,
               delivery_fee: deliveryFee,
@@ -281,7 +283,9 @@ export default function Checkout() {
           status: 'pending',
           payment_method: 'cod',
           payment_status: 'pending',
-          address: fullAddressText
+          address: fullAddressText,
+          latitude: selectedAddress.latitude,
+          longitude: selectedAddress.longitude
         }])
         .select()
         .single();

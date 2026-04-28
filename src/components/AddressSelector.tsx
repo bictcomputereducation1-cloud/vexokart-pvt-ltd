@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Address } from '../types';
-import { Plus, MapPin, CheckCircle2, Trash2, Home, Briefcase, Building2, Map } from 'lucide-react';
+import { Plus, MapPin, CheckCircle2, Trash2, Home, Briefcase, Building2, Map, Navigation } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { toast } from 'sonner';
+import { LocationPicker } from './LocationPicker';
 
 interface AddressSelectorProps {
   onSelect: (address: Address) => void;
@@ -21,6 +22,8 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
     full_address: '',
     city: '',
     pincode: '',
+    latitude: null as number | null,
+    longitude: null as number | null,
     is_default: false
   });
 
@@ -51,9 +54,24 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
     }
   };
 
+  const handleLocationSelected = (data: { lat: number, lng: number, address: string, city: string, pincode: string }) => {
+    setNewAddress(prev => ({
+        ...prev,
+        full_address: data.address,
+        city: data.city,
+        pincode: data.pincode,
+        latitude: data.lat,
+        longitude: data.lng
+    }));
+  };
+
   const handleAddAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
+
+    if (!newAddress.latitude || !newAddress.longitude) {
+        return toast.error('Please select your location on the map');
+    }
 
     try {
       setLoading(true);
@@ -68,11 +86,34 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
       
       toast.success('Address updated!');
       setIsAdding(false);
-      setNewAddress({ full_name: '', phone: '', full_address: '', city: '', pincode: '', is_default: false });
+      setNewAddress({ 
+        full_name: '', 
+        phone: '', 
+        full_address: '', 
+        city: '', 
+        pincode: '', 
+        latitude: null, 
+        longitude: null, 
+        is_default: false 
+      });
       await fetchAddresses();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving address:', error);
-      toast.error('Failed to save address');
+      // Fallback if columns don't exist
+      if (error.message?.includes('latitude') || error.message?.includes('longitude')) {
+          console.warn('Latitude/Longitude columns missing in DB. Saving without them.');
+          const { latitude, longitude, ...rest } = newAddress;
+          const { error: retryError } = await supabase
+            .from('user_addresses')
+            .upsert({ ...rest, user_id: user.id }, { onConflict: 'user_id' });
+          
+          if (retryError) throw retryError;
+          toast.success('Address saved (without coordinates)');
+          setIsAdding(false);
+          await fetchAddresses();
+      } else {
+          toast.error('Failed to save address');
+      }
     } finally {
       setLoading(false);
     }
@@ -152,51 +193,73 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
       </div>
 
       {isAdding && (
-        <form onSubmit={handleAddAddress} className="bg-slate-50 p-6 rounded-2xl border border-slate-200 space-y-4 animate-in slide-in-from-top duration-300">
-          <div className="grid grid-cols-2 gap-3">
+        <form onSubmit={handleAddAddress} className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200 space-y-4 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2 mb-2">
+             <div className="bg-primary p-2 rounded-xl">
+                 <Navigation className="h-4 w-4 text-black" />
+             </div>
+             <h3 className="text-xs font-black uppercase tracking-widest text-slate-900">Set Delivery Location</h3>
+          </div>
+
+          <LocationPicker onLocationSelected={handleLocationSelected} />
+
+          <div className="grid grid-cols-2 gap-3 mt-4">
             <input 
               required
               placeholder="Full Name"
-              className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold w-full"
+              className="bg-white border border-slate-100 rounded-2xl px-4 py-4 text-xs font-bold w-full shadow-sm focus:border-primary outline-none transition-all"
               value={newAddress.full_name}
               onChange={e => setNewAddress({...newAddress, full_name: e.target.value})}
             />
             <input 
               required
-              placeholder="Phone (10-digit)"
-              className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold w-full"
+              placeholder="Phone Number"
+              className="bg-white border border-slate-100 rounded-2xl px-4 py-4 text-xs font-bold w-full shadow-sm focus:border-primary outline-none transition-all"
               value={newAddress.phone}
               onChange={e => setNewAddress({...newAddress, phone: e.target.value})}
             />
           </div>
-          <textarea 
-            required
-            placeholder="Full Address (House, Street, Area)"
-            className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold w-full min-h-[80px]"
-            value={newAddress.full_address}
-            onChange={e => setNewAddress({...newAddress, full_address: e.target.value})}
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <input 
-              required
-              placeholder="City"
-              className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold w-full"
-              value={newAddress.city}
-              onChange={e => setNewAddress({...newAddress, city: e.target.value})}
-            />
-            <input 
-              required
-              placeholder="Pincode"
-              className="bg-white border border-slate-200 rounded-xl px-4 py-3 text-xs font-bold w-full"
-              value={newAddress.pincode}
-              onChange={e => setNewAddress({...newAddress, pincode: e.target.value})}
-            />
+          
+          <div className="space-y-4 pt-2">
+            <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Confirm Address Details</p>
+                <textarea 
+                    required
+                    placeholder="House No., Building Name, Area"
+                    className="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none min-h-[60px]"
+                    value={newAddress.full_address}
+                    onChange={e => setNewAddress({...newAddress, full_address: e.target.value})}
+                />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">City</p>
+                    <input 
+                        required
+                        className="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none"
+                        value={newAddress.city}
+                        onChange={e => setNewAddress({...newAddress, city: e.target.value})}
+                    />
+                </div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">Pincode</p>
+                    <input 
+                        required
+                        className="w-full bg-transparent text-xs font-bold text-slate-900 focus:outline-none"
+                        value={newAddress.pincode}
+                        onChange={e => setNewAddress({...newAddress, pincode: e.target.value})}
+                    />
+                </div>
+            </div>
           </div>
+
           <button 
             type="submit"
-            className="w-full bg-primary text-black h-11 rounded-xl font-black uppercase text-xs tracking-widest shadow-lg"
+            disabled={loading}
+            className="w-full bg-primary text-black h-14 rounded-[1.5rem] font-black uppercase text-xs tracking-[0.2em] shadow-xl shadow-primary/20 active:scale-95 transition-all disabled:opacity-50"
           >
-            Save Address
+            {loading ? 'Saving...' : 'Confirm Delivery Location'}
           </button>
         </form>
       )}

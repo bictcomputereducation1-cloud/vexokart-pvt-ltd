@@ -96,7 +96,9 @@ async function startServer() {
         discount_amount,
         coupon_code,
         delivery_fee,
-        vendor_id // New field
+        vendor_id, // New field
+        latitude,
+        longitude
       } = req.body;
 
       const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
@@ -135,25 +137,41 @@ async function startServer() {
       }
 
       // 2. Create order in Supabase
-      const { data: newOrder, error: orderError } = await supabase
+      const orderEntry: any = {
+        user_id: userId,
+        total_amount: amount,
+        vendor_id: vendor.id,
+        pincode: pincode,
+        discount_amount: discount_amount || 0,
+        coupon_code: coupon_code || null,
+        delivery_fee: delivery_fee || 0,
+        status: 'confirmed',
+        payment_method: 'online',
+        payment_status: 'paid',
+        payment_id: razorpay_payment_id,
+        razorpay_order_id: razorpay_order_id,
+        address: address,
+        latitude: latitude || null,
+        longitude: longitude || null
+      };
+
+      let { data: newOrder, error: orderError } = await supabase
         .from('orders')
-        .insert([{
-          user_id: userId,
-          total_amount: amount,
-          vendor_id: vendor.id,
-          pincode: pincode,
-          discount_amount: discount_amount || 0,
-          coupon_code: coupon_code || null,
-          delivery_fee: delivery_fee || 0,
-          status: 'confirmed',
-          payment_method: 'online',
-          payment_status: 'paid',
-          payment_id: razorpay_payment_id,
-          razorpay_order_id: razorpay_order_id,
-          address: address
-        }])
+        .insert([orderEntry])
         .select()
         .single();
+
+      if (orderError && (orderError.message?.includes('latitude') || orderError.message?.includes('longitude'))) {
+        console.warn("Retrying order creation without GPS coordinates due to schema mismatch");
+        const { latitude: _, longitude: __, ...fallbackEntry } = orderEntry;
+        const retryResult = await supabase
+          .from('orders')
+          .insert([fallbackEntry])
+          .select()
+          .single();
+        newOrder = retryResult.data;
+        orderError = retryResult.error;
+      }
 
       if (orderError) {
         console.error("Order creation error:", orderError);

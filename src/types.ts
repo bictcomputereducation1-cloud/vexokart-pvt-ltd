@@ -43,6 +43,8 @@ export interface Order {
   razorpay_order_id: string | null;
   address: string;
   pincode: string;
+  latitude: number | null;
+  longitude: number | null;
   invoice_url: string | null;
   created_at: string;
   users?: Profile;
@@ -68,6 +70,8 @@ export interface Address {
   full_address: string;
   city: string;
   pincode: string;
+  latitude: number | null;
+  longitude: number | null;
   is_default: boolean;
   created_at: string;
 }

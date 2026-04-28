@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { MapPin, Search, Loader2, Home, Briefcase, Plus } from 'lucide-react';
+import { MapPin, Search, Loader2, Home, Briefcase, Plus, Navigation, CheckCircle2 } from 'lucide-react';
 import { useDeliveryLocation } from '../LocationContext';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { useAuth } from '../AuthContext';
 import { Address } from '../types';
+import { LocationPicker } from './LocationPicker';
 
 export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOpen, onClose }) => {
   const { setLocation, pincode: currentPincode } = useDeliveryLocation();
@@ -12,7 +13,10 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
   const [pincode, setPincode] = useState('');
   const [validating, setValidating] = useState(false);
   const [fullAddress, setFullAddress] = useState('');
+  const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
+  const [lat, setLat] = useState<number | null>(null);
+  const [lng, setLng] = useState<number | null>(null);
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
 
   const isForced = !currentPincode && user;
@@ -33,9 +37,17 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
     if (data) setSavedAddresses(data);
   };
 
+  const handleLocationSelected = (data: { lat: number, lng: number, address: string, city: string, pincode: string }) => {
+    setPincode(data.pincode);
+    setCity(data.city);
+    setFullAddress(data.address);
+    setLat(data.lat);
+    setLng(data.lng);
+  };
+
   const handleValidate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pincode.length < 6) return toast.error('Enter a valid 6-digit pincode');
+    if (!lat || !lng) return toast.error('Please select location on map');
     
     if (user) {
       if (!fullAddress.trim()) return toast.error('Please enter your full address');
@@ -44,8 +56,7 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
 
     setValidating(true);
     try {
-      // No longer validating with DB, allowed everywhere
-      const determinedCity = 'My Location';
+      const determinedCity = city || 'My Location';
       
       if (user && fullAddress.trim()) {
          // Reset existing defaults first
@@ -61,16 +72,24 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
            full_address: fullAddress,
            full_name: profile?.name || user.email?.split('@')[0] || 'Member',
            phone: phone,
+           latitude: lat,
+           longitude: lng,
            is_default: true
          }, { onConflict: 'user_id' });
       }
 
       toast.success(`Success! Delivering to ${pincode}`);
-      setLocation(pincode, determinedCity, true);
+      setLocation(pincode, determinedCity, fullAddress, lat, lng);
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Address save error:', err);
-      toast.error('Failed to save location. Please try again.');
+      if (err.message?.includes('latitude')) {
+          // Fallback if columns missing
+          setLocation(pincode, city || 'My Location', fullAddress);
+          onClose();
+      } else {
+          toast.error('Failed to save location. Please try again.');
+      }
     } finally {
       setValidating(false);
     }
@@ -80,7 +99,6 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
     setValidating(true);
     try {
       if (user) {
-        // Update DB default
         await supabase
           .from('user_addresses')
           .update({ is_default: false })
@@ -92,7 +110,7 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
           .eq('id', addr.id);
       }
       
-      setLocation(addr.pincode, addr.city, true);
+      setLocation(addr.pincode, addr.city, addr.full_address, addr.latitude, addr.longitude);
       toast.success(`Delivery set to ${addr.city}`);
       onClose();
     } catch (err) {
@@ -110,8 +128,8 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
         className={`absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-500 ${isForced ? 'pointer-events-none' : ''}`}
         onClick={!isForced ? onClose : undefined}
       />
-      <div className="relative bg-white w-full max-w-sm rounded-[3rem] shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-10 duration-500 overflow-hidden border border-slate-100">
-        <div className="p-8 space-y-7">
+      <div className="relative bg-white w-full max-w-sm rounded-[3rem] shadow-2xl animate-in zoom-in-95 slide-in-from-bottom-10 duration-500 overflow-hidden border border-slate-100 flex flex-col max-h-[90vh]">
+        <div className="p-8 space-y-6 overflow-y-auto no-scrollbar">
           <div className="space-y-2">
             <h2 className="text-3xl font-black italic tracking-tighter uppercase text-slate-900 leading-tight">Select Delivery<br/><span className="text-primary italic">Location</span></h2>
             <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest leading-relaxed">
@@ -129,8 +147,8 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
                       onClick={() => selectAddress(addr)}
                       className="flex items-center gap-4 w-full p-4 rounded-2xl bg-slate-50 border-2 border-transparent hover:border-primary/40 hover:bg-white transition-all text-left group shadow-sm"
                     >
-                      <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center shadow-inner group-hover:bg-primary transition-colors">
-                        <MapPin className="h-4 w-4 text-slate-400 group-hover:text-black transition-colors" />
+                      <div className="h-10 w-10 rounded-xl bg-white flex items-center justify-center shadow-inner group-hover:bg-primary transition-colors text-slate-400 group-hover:text-black">
+                        <MapPin className="h-4 w-4" />
                       </div>
                       <div className="flex flex-col flex-grow">
                         <span className="text-[11px] font-black uppercase tracking-tight text-slate-900">{addr.city} - {addr.pincode}</span>
@@ -142,51 +160,66 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
             </div>
           )}
 
+          <div className="space-y-4">
+             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Pick on Map</p>
+             <LocationPicker onLocationSelected={handleLocationSelected} />
+          </div>
+
           <form onSubmit={handleValidate} className="space-y-4 pt-2">
             <div className="space-y-3">
-              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Search New Address</p>
-              <div className="relative group">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" />
-                <input 
-                  type="text" 
-                  autoFocus
-                  maxLength={6}
-                  value={pincode}
-                  onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
-                  placeholder="Enter 6-digit pincode"
-                  className="w-full bg-slate-50 border-2 border-slate-100 p-5 pl-12 rounded-3xl font-black focus:border-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 text-lg shadow-inner"
-                />
-              </div>
-              
               {user && (
-                <div className="animate-in slide-in-from-top-2 duration-300">
-                  <input 
-                    type="text" 
-                    required
-                    value={fullAddress}
-                    onChange={(e) => setFullAddress(e.target.value)}
-                    placeholder="House No, Street Name, Famous Landmark"
-                    className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl font-bold focus:border-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 text-xs shadow-inner"
-                  />
-                  <input 
-                    type="tel" 
-                    required
-                    maxLength={10}
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                    placeholder="10-digit Phone Number"
-                    className="w-full bg-slate-50 border-2 border-slate-100 p-4 rounded-2xl font-bold focus:border-primary focus:bg-white outline-none transition-all placeholder:text-slate-300 text-xs shadow-inner"
-                  />
+                <div className="animate-in slide-in-from-top-2 duration-300 space-y-3">
+                  <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 flex flex-col gap-1">
+                      <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Full Address</p>
+                      <textarea 
+                        required
+                        value={fullAddress}
+                        onChange={(e) => setFullAddress(e.target.value)}
+                        placeholder="House No, Street Name, Landmark"
+                        className="w-full bg-transparent font-bold focus:outline-none transition-all placeholder:text-slate-200 text-xs shadow-none min-h-[60px]"
+                      />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 flex flex-col gap-1">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Pincode</p>
+                          <input 
+                            type="text" 
+                            required
+                            maxLength={6}
+                            value={pincode}
+                            onChange={(e) => setPincode(e.target.value.replace(/\D/g, ''))}
+                            placeholder="6-digit"
+                            className="w-full bg-transparent font-bold focus:outline-none transition-all placeholder:text-slate-200 text-xs"
+                          />
+                      </div>
+                      <div className="bg-slate-50 p-4 rounded-2xl border-2 border-slate-100 flex flex-col gap-1">
+                          <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Phone</p>
+                          <input 
+                            type="tel" 
+                            required
+                            maxLength={10}
+                            value={phone}
+                            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                            placeholder="10-digit"
+                            className="w-full bg-transparent font-bold focus:outline-none transition-all placeholder:text-slate-200 text-xs"
+                          />
+                      </div>
+                  </div>
                 </div>
               )}
             </div>
 
             <button 
               type="submit"
-              disabled={validating}
-              className="w-full bg-primary text-black p-5 rounded-[2rem] font-black uppercase tracking-widest hover:bg-black hover:text-primary transition-all active:scale-95 shadow-xl shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={validating || !lat}
+              className="w-full bg-primary text-black h-16 rounded-[2rem] font-black uppercase tracking-tighter hover:bg-black hover:text-primary transition-all active:scale-95 shadow-xl shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm"
             >
-              {validating ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Confirm Location'}
+              {validating ? <Loader2 className="h-5 w-5 animate-spin" /> : (
+                  <span className="flex items-center gap-2">
+                      Confirm & Set Location <CheckCircle2 className="h-5 w-5" />
+                  </span>
+              )}
             </button>
           </form>
 
