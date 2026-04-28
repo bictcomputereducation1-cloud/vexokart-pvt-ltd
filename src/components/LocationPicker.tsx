@@ -74,7 +74,16 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
   };
 
   useEffect(() => {
-    fetchAddress(position[0], position[1]);
+    if (initialLocation) {
+      setPosition([initialLocation.lat, initialLocation.lng]);
+      fetchAddress(initialLocation.lat, initialLocation.lng);
+    }
+  }, [initialLocation?.lat, initialLocation?.lng]);
+
+  useEffect(() => {
+    if (!initialLocation) {
+       fetchAddress(position[0], position[1]);
+    }
   }, []);
 
   const handleGetCurrentLocation = () => {
@@ -97,8 +106,8 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
   };
 
   return (
-    <div className="space-y-4">
-      <div className="relative h-[340px] rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner group">
+    <div className="h-full w-full">
+      <div className="relative h-full w-full group">
         <MapContainer 
           center={position} 
           zoom={16} 
@@ -125,24 +134,10 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
 
         <button 
           onClick={handleGetCurrentLocation}
-          className="absolute bottom-6 right-6 z-[1000] bg-white h-12 w-12 flex items-center justify-center rounded-2xl shadow-2xl active:scale-90 transition-all border border-slate-100"
+          className="absolute bottom-40 right-6 z-[1000] bg-white h-12 w-12 flex items-center justify-center rounded-2xl shadow-2xl active:scale-90 transition-all border border-slate-100"
         >
           <Target className="h-5 w-5 text-emerald-600" />
         </button>
-
-        <div className="absolute top-6 left-6 right-6 z-[1000] pointer-events-none">
-            <div className="bg-white/95 backdrop-blur-xl p-4 rounded-3xl border border-white/50 shadow-2xl flex items-center gap-3">
-                <div className="bg-emerald-100 p-2.5 rounded-2xl shrink-0">
-                    <Navigation className="h-5 w-5 text-emerald-600" />
-                </div>
-                <div className="flex-grow min-w-0">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Adjust map to find your door</p>
-                    <p className="text-[12px] font-bold text-slate-900 truncate">
-                        {isReverseGeocoding ? 'Locating...' : address || 'Finding address...'}
-                    </p>
-                </div>
-            </div>
-        </div>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Product, Category } from '../types';
+import { Product, Category, Subcategory } from '../types';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
@@ -12,19 +12,29 @@ import { Plus, Pencil, Trash2, Search, Package } from 'lucide-react';
 export default function AdminProducts() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
 
   useEffect(() => {
     fetchData();
   }, []);
 
+  useEffect(() => {
+    if (selectedCategoryId) {
+      fetchSubcategories(selectedCategoryId);
+    } else {
+      setSubcategories([]);
+    }
+  }, [selectedCategoryId]);
+
   const fetchData = async () => {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
-        supabase.from('products').select('*, categories(*)').order('created_at', { ascending: false }),
+        supabase.from('products').select('*, categories(*), subcategories(*)').order('created_at', { ascending: false }),
         supabase.from('categories').select('*').order('name')
       ]);
 
@@ -40,10 +50,21 @@ export default function AdminProducts() {
     }
   };
 
+  const fetchSubcategories = async (catId: string) => {
+    const { data } = await supabase
+      .from('subcategories')
+      .select('*')
+      .eq('category_id', catId)
+      .order('name');
+    setSubcategories(data || []);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const form = e.target as HTMLFormElement;
     const formData = new FormData(form);
+    
+    const subId = formData.get('subcategory_id') as string;
     
     const productData = {
       name: formData.get('name') as string,
@@ -52,6 +73,7 @@ export default function AdminProducts() {
       original_price: parseFloat(formData.get('original_price') as string),
       stock: parseInt(formData.get('stock') as string),
       category_id: formData.get('category_id') as string,
+      subcategory_id: (subId && subId !== 'none') ? subId : null,
       image_url: formData.get('image_url') as string,
       cod_available: formData.get('cod_available') === 'on',
       online_payment: formData.get('online_payment') === 'on',
@@ -74,6 +96,7 @@ export default function AdminProducts() {
       }
       setIsDialogOpen(false);
       setEditingProduct(null);
+      setSelectedCategoryId('');
       fetchData();
     } catch (error: any) {
       toast.error(error.message);
@@ -162,18 +185,38 @@ export default function AdminProducts() {
                 </div>
               </div>
               
-              <div className="space-y-2" key={editingProduct?.id || 'new'}>
-                <label className="text-sm font-semibold text-slate-700">Category</label>
-                <Select name="category_id" defaultValue={editingProduct?.category_id || ''}>
-                  <SelectTrigger className="h-11 shadow-sm">
-                    <SelectValue placeholder="Identify category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-6" key={editingProduct?.id || 'new'}>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Category</label>
+                  <Select 
+                    name="category_id" 
+                    defaultValue={editingProduct?.category_id || ''}
+                    onValueChange={(val) => setSelectedCategoryId(val)}
+                  >
+                    <SelectTrigger className="h-11 shadow-sm">
+                      <SelectValue placeholder="Identify category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categories.map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-semibold text-slate-700">Subcategory (Optional)</label>
+                  <Select name="subcategory_id" defaultValue={editingProduct?.subcategory_id || ''}>
+                    <SelectTrigger className="h-11 shadow-sm">
+                      <SelectValue placeholder="Pick subcategory" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      {subcategories.map(sub => (
+                        <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -278,7 +321,16 @@ export default function AdminProducts() {
                     </div>
                   </div>
                 </TableCell>
-                <TableCell>{(product as any).categories?.name || 'N/A'}</TableCell>
+                <TableCell>
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium">{(product as any).categories?.name || 'N/A'}</span>
+                    {(product as any).subcategories?.name && (
+                      <span className="text-[9px] font-black uppercase tracking-tighter text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded w-fit">
+                        {(product as any).subcategories.name}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
                 <TableCell className="text-slate-400 line-through">₹{product.original_price}</TableCell>
                 <TableCell className="font-bold text-green-600">₹{product.price}</TableCell>
                 <TableCell>
@@ -293,6 +345,9 @@ export default function AdminProducts() {
                       size="icon"
                       onClick={() => {
                         setEditingProduct(product);
+                        if (product.category_id) {
+                          setSelectedCategoryId(product.category_id);
+                        }
                         setIsDialogOpen(true);
                       }}
                     >

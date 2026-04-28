@@ -25,10 +25,10 @@ import { supabase } from '../lib/supabase';
 import { Category, Product } from '../types';
 
 const featureStrip = [
-  { icon: ShieldCheck, label: "Secure Payments", sub: "100% Safe", color: "text-green-600", bg: "bg-green-50" },
-  { icon: Clock, label: "Fast Delivery", sub: "30-45 mins", color: "text-green-600", bg: "bg-green-50" },
-  { icon: Star, label: "Best Quality", sub: "Fresh & Pure", color: "text-green-600", bg: "bg-green-50" },
-  { icon: CreditCard, label: "Best Prices", sub: "Great Offers", color: "text-green-600", bg: "bg-green-50" }
+  { icon: Star, label: "Best Quality", sub: "Premium Products", color: "text-amber-500", bg: "bg-amber-50" },
+  { icon: Zap, label: "Fast Delivery", sub: "10 Minutes", color: "text-orange-500", bg: "bg-orange-50" },
+  { icon: CreditCard, label: "Best Prices", sub: "Great Offers", color: "text-blue-500", bg: "bg-blue-50" },
+  { icon: ShieldCheck, label: "Secure Payment", sub: "100% Safe", color: "text-emerald-500", bg: "bg-emerald-50" }
 ];
 
 const bannerData = [
@@ -44,19 +44,6 @@ const bannerData = [
     gradient: "from-blue-600 to-indigo-400",
     image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600"
   }
-];
-
-const categoryBackgrounds = [
-  "bg-cyan-50",
-  "bg-pink-50",
-  "bg-amber-50",
-  "bg-orange-50",
-  "bg-indigo-50",
-  "bg-slate-50",
-  "bg-emerald-50",
-  "bg-purple-50",
-  "bg-rose-50",
-  "bg-blue-50"
 ];
 
 export default function Home() {
@@ -81,11 +68,33 @@ export default function Home() {
 
   const fetchData = async () => {
     try {
-      const [{ data: cats }, { data: prods }] = await Promise.all([
-        supabase.from('categories').select('*').order('name'),
-        supabase.from('products').select('*').limit(6)
-      ]);
-      if (cats) setCategories(cats);
+      // 1. Get Categories
+      const { data: cats } = await supabase.from('categories').select('*').order('name');
+      
+      if (cats) {
+        // 2. Get Products for previews
+        const { data: prods } = await supabase
+          .from('products')
+          .select('id, name, image_url, category_id')
+          .in('category_id', cats.map(c => c.id));
+
+        if (prods) {
+          const catsWithData = cats.map(cat => {
+            const catProds = prods.filter(p => p.category_id === cat.id);
+            return {
+              ...cat,
+              previewProducts: catProds.slice(0, 4),
+              totalCount: catProds.length
+            };
+          });
+          setCategories(catsWithData as any);
+        } else {
+          setCategories(cats);
+        }
+      }
+
+      // 3. Best sellers
+      const { data: prods } = await supabase.from('products').select('*').limit(6);
       if (prods) setBestSellers(prods);
     } catch (err) {
       console.error(err);
@@ -122,44 +131,73 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen pb-32 bg-[#F8FFF9]">
+    <div className="min-h-screen pb-32 bg-[#FAF9F6]">
+      {/* 🔹 LOGO & TAGLINE */}
+      <div className="pt-6 pb-4 flex flex-col items-center">
+         <div className="flex items-center gap-2">
+            <div className="relative">
+               <ShoppingCart className="h-8 w-8 text-[#C49B3B] fill-[#C49B3B]/10" />
+               <div className="absolute -top-1 -left-1 flex gap-0.5">
+                  <div className="h-1 w-2 bg-[#C49B3B] rounded-full" />
+               </div>
+            </div>
+            <h1 className="text-4xl font-black tracking-tighter text-slate-900">
+               Vexo<span className="text-[#C49B3B]">Kart</span>
+            </h1>
+         </div>
+         <div className="flex items-center gap-2 mt-1">
+            <div className="h-[1px] w-4 bg-[#C49B3B]/40" />
+            <span className="text-[10px] font-black text-[#C49B3B] uppercase tracking-[0.2em]">Smart Shopping, Easy Living</span>
+            <div className="h-[1px] w-4 bg-[#C49B3B]/40" />
+         </div>
+      </div>
+
+      {/* 🔹 SEARCH BAR */}
+      <div className="px-4 mb-8">
+        <div 
+          onClick={() => navigate('/search')}
+          className="relative cursor-pointer group"
+        >
+          <div className="flex items-center gap-4 h-14 px-6 bg-white rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/40 transition-all active:scale-[0.98]">
+            <SearchIcon className="h-5 w-5 text-slate-400" />
+            <span className="text-sm text-slate-400 font-bold tracking-tight">Search for products, brands and more...</span>
+            <div className="ml-auto h-8 w-[1px] bg-slate-100 mx-1" />
+            <Mic className="h-5 w-5 text-[#C49B3B]" />
+          </div>
+        </div>
+      </div>
+
       {/* 🔹 HERO BANNER */}
       <div className="px-4 mb-8">
-        <div className="relative h-[250px] rounded-[3rem] bg-[#E9FCE9] overflow-hidden group shadow-2xl shadow-green-900/5">
-          <div className="absolute inset-0 p-8 flex flex-col justify-center max-w-[65%]">
-            <h2 className="text-4xl font-black text-[#165E27] leading-[1.1] tracking-tighter mb-2">
-              Fresh Groceries <br /> Delivered Fast!
+        <div className="relative h-[220px] rounded-[3rem] bg-amber-50 overflow-hidden group border border-white shadow-xl shadow-amber-900/5">
+          <div className="absolute inset-0 p-8 flex flex-col justify-center z-10">
+            <p className="text-slate-600 text-xs font-bold mb-1">Everything You Need,</p>
+            <h2 className="text-4xl font-black text-[#C49B3B] leading-none tracking-tighter mb-4">
+              Delivered in <br /> 10 Minutes
             </h2>
-            <p className="text-[#165E27]/70 text-sm font-bold mb-6">
-              Get your daily essentials in 30–45 minutes
-            </p>
+            <p className="text-slate-400 text-[10px] font-bold mb-6">Fast. Reliable. Always.</p>
             <button 
               onClick={() => navigate('/categories')}
-              className="w-fit bg-[#16A34A] text-white px-8 py-3.5 rounded-[1.5rem] font-black uppercase tracking-widest text-[11px] flex items-center gap-3 shadow-xl shadow-green-900/20 active:scale-95 transition-all"
+              className="w-fit bg-[#C49B3B] text-white px-6 py-2.5 rounded-full font-black uppercase tracking-widest text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-900/20"
             >
-              Shop Now <ArrowRight className="h-4 w-4" />
+              Shop Now <ArrowRight className="h-3 w-3" />
             </button>
           </div>
           
-          <div className="absolute right-0 top-0 bottom-0 w-[45%] pointer-events-none p-4">
-             <div className="relative h-full w-full">
-                <img 
-                  src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600" 
-                  alt="" 
-                  className="w-full h-full object-contain filter drop-shadow-2xl" 
-                />
-                <div className="absolute top-8 right-0 bg-white p-3 rounded-[1.5rem] shadow-xl flex flex-col items-center">
-                   <span className="text-[14px] font-black text-green-700 leading-none">30-</span>
-                   <span className="text-[8px] font-black text-green-700/60 uppercase tracking-tighter">45 MINS</span>
-                   <span className="text-[7px] font-black text-green-700/40 uppercase">DELIVERY</span>
-                </div>
-             </div>
+          <div className="absolute right-0 top-0 bottom-0 w-[55%] flex items-center justify-end p-4">
+             <img 
+               src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600" 
+               alt="" 
+               className="h-full object-contain filter drop-shadow-2xl" 
+             />
           </div>
 
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2">
-             {[1,2,3,4,5].map((_, i) => (
-               <div key={i} className={cn("h-2 rounded-full transition-all duration-300", i === 0 ? "w-6 bg-green-600" : "w-2 bg-green-200")} />
-             ))}
+          {/* 10 MINS Badge */}
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30">
+             <div className="bg-white rounded-full h-20 w-20 flex flex-col items-center justify-center border-2 border-amber-100 p-1">
+                <span className="text-2xl font-black text-amber-600 leading-none">10</span>
+                <span className="text-[7px] font-black text-slate-400 uppercase tracking-tighter text-center">Minutes<br/>Delivery</span>
+             </div>
           </div>
         </div>
       </div>
@@ -184,37 +222,29 @@ export default function Home() {
       {/* 🔹 CATEGORY GRID */}
       <div className="px-4 mb-10">
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-black text-slate-900 tracking-tighter">Shop by Category</h3>
-          <button onClick={() => navigate('/categories')} className="text-xs font-black text-green-600 uppercase tracking-widest">
-            View All
+          <h3 className="text-xl font-bold text-slate-800 tracking-tight">Shop by Category</h3>
+          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1">
+            See All <ChevronRight className="h-4 w-4" />
           </button>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          {categories.map((cat, idx) => (
+        <div className="grid grid-cols-4 gap-4">
+          {categories.slice(0, 8).map((cat: any) => (
             <motion.div
               key={cat.id}
               whileTap={{ scale: 0.96 }}
               onClick={() => navigate(`/category/${cat.slug}`)}
-              className="relative aspect-square rounded-[2rem] overflow-hidden group cursor-pointer border border-white shadow-sm"
+              className="flex flex-col items-center gap-2 cursor-pointer group"
             >
-              <div className={cn(
-                "absolute inset-0 transition-colors duration-500",
-                categoryBackgrounds[idx % categoryBackgrounds.length],
-                "group-hover:bg-opacity-80"
-              )} />
-              
-              <div className="absolute inset-0 p-4 flex flex-col items-center justify-center gap-2">
-                <div className="w-full h-full max-h-[60%] flex items-center justify-center">
-                  <img 
-                    src={cat.image_url || ''} 
-                    alt={cat.name} 
-                    className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-110 transition-transform duration-500" 
-                  />
-                </div>
-                <span className="text-[11px] font-black text-slate-900 text-center leading-tight tracking-tight uppercase px-1">
-                  {cat.name}
-                </span>
+              <div className="h-16 w-16 bg-white rounded-3xl flex items-center justify-center p-3 shadow-md border border-slate-100 transition-all group-hover:shadow-amber-100 group-hover:border-amber-100">
+                <img 
+                  src={cat.image_url || ''} 
+                  alt={cat.name} 
+                  className="w-full h-full object-contain filter group-hover:scale-110 transition-transform duration-500" 
+                />
               </div>
+              <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">
+                {cat.name}
+              </span>
             </motion.div>
           ))}
         </div>
@@ -224,14 +254,14 @@ export default function Home() {
       <div className="mb-10">
         <div className="px-4 flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-             <h3 className="text-xl font-black text-slate-900 tracking-tighter">Deal of the Day ⚡</h3>
-             <div className="flex items-center gap-1.5 bg-[#E9FCE9] text-green-700 px-3 py-1.5 rounded-full border border-green-100">
-               <Clock className="h-3 w-3" />
-               <span className="text-[10px] font-black">08 : 45 : 32 Left</span>
+             <h3 className="text-xl font-bold text-slate-800 tracking-tight">Deals of the Day</h3>
+             <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full border border-amber-100">
+               <Clock className="h-3.5 w-3.5" />
+               <span className="text-[11px] font-bold">02 : 45 : 12 Left</span>
              </div>
           </div>
-          <button onClick={() => navigate('/categories')} className="text-xs font-black text-green-600 flex items-center gap-1.5 uppercase tracking-widest">
-            View All <ChevronRight className="h-4 w-4" />
+          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1 uppercase tracking-widest">
+            See All <ChevronRight className="h-4 w-4" />
           </button>
         </div>
 
@@ -243,47 +273,73 @@ export default function Home() {
             return (
               <div 
                 key={p.id} 
-                className="bg-white rounded-[2.5rem] p-5 min-w-[180px] shadow-xl shadow-black/[0.03] border border-slate-50 relative group flex flex-col active:scale-95 transition-all cursor-pointer"
+                className="bg-white rounded-[2rem] p-4 min-w-[170px] shadow-sm border border-slate-100 relative group flex flex-col active:scale-95 transition-all cursor-pointer"
                 onClick={() => navigate(`/product/${p.id}`)}
               >
                   {hasDiscount && (
-                    <div className="absolute top-4 left-4 bg-red-500 text-white text-[9px] font-black px-2.5 py-1.5 rounded-[0.8rem] z-10 shadow-lg shadow-red-100">
-                      {discountPercent}% OFF
+                    <div className="absolute top-0 left-0 bg-[#C49B3B] text-white text-[9px] font-black px-2 py-3 rounded-br-[1.2rem] rounded-tl-[1.8rem] z-10">
+                      {discountPercent}%<br/>OFF
                     </div>
                   )}
-                  <div className="w-full aspect-square mb-4 flex items-center justify-center p-2">
-                    <img src={p.image_url} alt="" className="max-h-full object-contain filter drop-shadow-sm group-hover:scale-110 transition-transform duration-500" />
+                  <div className="w-full aspect-square mb-3 flex items-center justify-center p-2">
+                    <img src={p.image_url} alt="" className="max-h-full object-contain filter group-hover:scale-110 transition-transform duration-500" />
                   </div>
                   <div className="space-y-1">
-                    <h4 className="text-[12px] font-black text-slate-900 leading-tight line-clamp-2 min-h-[2.5rem]">{p.name}</h4>
-                    <p className="text-[10px] font-bold text-slate-400">2.25L</p>
+                    <h4 className="text-[12px] font-bold text-slate-800 leading-tight line-clamp-1">{p.name}</h4>
+                    <p className="text-[10px] font-medium text-slate-400">2.25L</p>
                   </div>
                   <div className="mt-4 flex items-center justify-between">
                     <div className="flex flex-col">
-                       <span className="text-lg font-black text-slate-900 leading-none">₹{p.price}</span>
-                       {hasDiscount && (
-                         <span className="text-[10px] text-slate-300 line-through mt-1">₹{p.original_price}</span>
-                       )}
+                       <span className="text-base font-black text-slate-900 leading-none">₹{p.price}</span>
+                       <span className="text-[10px] text-slate-300 line-through mt-1 font-bold">₹{p.original_price || Math.round(p.price * 1.25)}</span>
                     </div>
-                    {items.some(item => item.id === p.id) ? (
-                      <button 
-                        onClick={(e) => { e.stopPropagation(); navigate('/cart'); }}
-                        className="h-10 px-4 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest active:scale-90 transition-all"
-                      >
-                        In Cart
-                      </button>
-                    ) : (
-                      <button 
+                    <button 
                        onClick={(e) => handleAddToCart(e, p)}
-                       className="h-10 w-10 bg-[#16A34A] rounded-xl flex items-center justify-center text-white shadow-lg shadow-[#16A34A]/20 active:scale-90 transition-all hover:bg-green-700"
-                      >
-                         <Plus className="h-6 w-6" />
-                      </button>
-                    )}
+                       className="h-8 w-8 bg-[#C49B3B] rounded-full flex items-center justify-center text-white shadow-lg active:scale-90 transition-all hover:bg-slate-900"
+                    >
+                       <Plus className="h-5 w-5" />
+                    </button>
                   </div>
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* 🔹 GOLD SAVINGS BANNER */}
+      <div className="px-4 mb-2">
+        <div className="relative h-[160px] rounded-[2.5rem] overflow-hidden group shadow-xl">
+           <div className="absolute inset-0 bg-[#FDF5E6]" />
+           {/* Decorative shapes */}
+           <div className="absolute -right-20 -top-20 h-60 w-60 bg-amber-200/40 rounded-full blur-3xl" />
+           <div className="absolute -left-10 -bottom-10 h-40 w-40 bg-amber-400/20 rounded-full blur-2xl" />
+           
+           <div className="relative h-full flex items-center px-8">
+              <div className="flex flex-col items-center mr-8">
+                 <Star className="h-6 w-6 text-[#C49B3B] mb-1" />
+                 <span className="text-xl font-black text-[#C49B3B] leading-none mb-0.5 uppercase tracking-tighter text-center">Gold<br/>Savings</span>
+              </div>
+              
+              <div className="flex flex-col">
+                 <h3 className="text-lg font-bold text-slate-800 leading-tight mb-2">Exclusive Offers<br/>For You</h3>
+                 <button className="bg-[#C49B3B] text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit shadow-lg shadow-amber-900/20 active:scale-95 transition-all">
+                    View Offers
+                 </button>
+              </div>
+
+              <div className="ml-auto w-1/3 flex justify-end">
+                  <div className="relative h-24 w-24">
+                     <div className="absolute inset-0 bg-white rounded-2xl rotate-12 shadow-md" />
+                     <div className="absolute inset-0 bg-[#C49B3B] rounded-2xl -rotate-6 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
+                        <img 
+                          src="https://images.unsplash.com/photo-1549463591-24c1882bd396?auto=format&fit=crop&q=80&w=300"
+                          alt="gift"
+                          className="w-full h-full object-cover"
+                        />
+                     </div>
+                  </div>
+              </div>
+           </div>
         </div>
       </div>
 

@@ -27,20 +27,26 @@ export default function CategoryProducts() {
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [category, setCategory] = useState<Category | null>(null);
   const [loading, setLoading] = useState(true);
+  const [productsLoading, setProductsLoading] = useState(false);
   const [selectedSubId, setSelectedSubId] = useState<string | 'all'>('all');
 
   useEffect(() => {
     if (identifier) {
-      fetchData();
+      fetchCategory();
     }
   }, [identifier]);
 
-  const fetchData = async () => {
+  useEffect(() => {
+    if (category?.id) {
+      fetchProducts();
+    }
+  }, [category?.id, selectedSubId]);
+
+  const fetchCategory = async () => {
     setLoading(true);
     try {
       let categoryData = null;
       
-      // 1. Find Main Category
       const { data: catBySlug } = await supabase
         .from('categories')
         .select('*')
@@ -64,7 +70,7 @@ export default function CategoryProducts() {
       if (categoryData) {
         setCategory(categoryData);
         
-        // 2. Fetch Subcategories
+        // Fetch Subcategories once per category
         const { data: subData } = await supabase
           .from('subcategories')
           .select('*')
@@ -72,22 +78,39 @@ export default function CategoryProducts() {
           .order('name');
         
         if (subData) setSubcategories(subData);
-
-        // 3. Fetch Products
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('*')
-          .eq('category_id', categoryData.id);
-        
-        if (productsData) setProducts(productsData);
       } else {
         toast.error('Category not found');
       }
     } catch (err) {
-      console.error('Error fetching category products:', err);
-      toast.error('Failed to load products');
+      console.error('Error fetching category:', err);
+      toast.error('Failed to load category');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchProducts = async () => {
+    if (!category?.id) return;
+    setProductsLoading(true);
+    try {
+      let query = supabase
+        .from('products')
+        .select('*')
+        .eq('category_id', category.id);
+      
+      if (selectedSubId !== 'all') {
+        query = query.eq('subcategory_id', selectedSubId);
+      }
+
+      const { data, error } = await query.order('name');
+      
+      if (error) throw error;
+      if (data) setProducts(data);
+    } catch (err) {
+      console.error('Error fetching products:', err);
+      toast.error('Failed to update products');
+    } finally {
+      setProductsLoading(false);
     }
   };
 
@@ -133,38 +156,47 @@ export default function CategoryProducts() {
               {category?.name}
             </h1>
             <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">
-              {filteredProducts.length} Products
+              {products.length} Products
             </p>
           </div>
         </div>
         
-        <button 
-          onClick={() => navigate('/search')}
-          className="h-10 w-10 flex items-center justify-center text-slate-400"
-        >
-          <Search className="h-5 w-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {productsLoading && <Loader2 className="h-4 w-4 text-emerald-600 animate-spin" />}
+          <button 
+            onClick={() => navigate('/search')}
+            className="h-10 w-10 flex items-center justify-center text-slate-400"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+        </div>
       </header>
 
       {/* 🔹 MAIN CONTENT AREA (SIDEBAR + GRID) */}
       <div className="flex flex-grow overflow-hidden">
         {/* LEFT SIDEBAR (Subcategories) */}
-        <aside className="w-24 flex-shrink-0 bg-slate-50 border-r border-slate-100 overflow-y-auto no-scrollbar">
-          <div className="flex flex-col">
+        <aside className="w-[72px] flex-shrink-0 bg-slate-50 border-r border-slate-100 overflow-y-auto no-scrollbar py-2">
+          <div className="flex flex-col gap-1">
             <button
               onClick={() => setSelectedSubId('all')}
-              className={cn(
-                "p-3 flex flex-col items-center gap-2 transition-all border-l-4",
-                selectedSubId === 'all' 
-                  ? "bg-white border-primary" 
-                  : "border-transparent opacity-60 grayscale"
-              )}
+              className="relative flex flex-col items-center gap-1.5 py-3 transition-all"
             >
-              <div className="h-12 w-12 bg-emerald-100 rounded-2xl flex items-center justify-center text-emerald-600">
-                <ShoppingBag className="h-6 w-6" />
+              {selectedSubId === 'all' && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-600 rounded-r-full" />
+              )}
+              <div className={cn(
+                "h-12 w-12 rounded-full flex items-center justify-center transition-all",
+                selectedSubId === 'all' 
+                  ? "bg-emerald-100 text-emerald-600" 
+                  : "bg-slate-100 text-slate-400 opacity-60"
+              )}>
+                <ShoppingBag className="h-5 w-5" />
               </div>
-              <span className="text-[9px] font-black uppercase text-center leading-tight tracking-tight">
-                All
+              <span className={cn(
+                "text-[8px] font-black uppercase text-center leading-[1.1] tracking-tight px-1",
+                selectedSubId === 'all' ? "text-slate-900" : "text-slate-500 font-bold"
+              )}>
+                All Items
               </span>
             </button>
 
@@ -172,21 +204,29 @@ export default function CategoryProducts() {
               <button
                 key={sub.id}
                 onClick={() => setSelectedSubId(sub.id)}
-                className={cn(
-                  "p-3 flex flex-col items-center gap-2 transition-all border-l-4",
-                  selectedSubId === sub.id 
-                    ? "bg-white border-primary" 
-                    : "border-transparent opacity-60 grayscale"
-                )}
+                className="relative flex flex-col items-center gap-1.5 py-3 transition-all"
               >
-                <div className="h-12 w-12 bg-white rounded-2xl flex items-center justify-center overflow-hidden border border-slate-100 shadow-sm">
+                {selectedSubId === sub.id && (
+                  <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-emerald-600 rounded-r-full" />
+                )}
+                <div className={cn(
+                  "h-12 w-12 rounded-full flex items-center justify-center overflow-hidden transition-all border",
+                  selectedSubId === sub.id 
+                    ? "bg-white border-emerald-100 shadow-sm" 
+                    : "bg-white border-transparent opacity-60"
+                )}>
                   {sub.image_url ? (
-                    <img src={sub.image_url} alt="" className="w-full h-full object-cover" />
+                    <img src={sub.image_url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                   ) : (
-                    <div className="h-full w-full bg-slate-100" />
+                    <div className="h-full w-full bg-slate-50 flex items-center justify-center">
+                       <ShoppingBag className="h-4 w-4 text-slate-300" />
+                    </div>
                   )}
                 </div>
-                <span className="text-[9px] font-black uppercase text-center leading-tight tracking-tight">
+                <span className={cn(
+                  "text-[8px] font-black uppercase text-center leading-[1.1] tracking-tight px-1",
+                  selectedSubId === sub.id ? "text-slate-900" : "text-slate-500 font-bold"
+                )}>
                   {sub.name}
                 </span>
               </button>
@@ -195,75 +235,125 @@ export default function CategoryProducts() {
         </aside>
 
         {/* RIGHT CONTENT (Product Grid) */}
-        <main className="flex-grow overflow-y-auto p-4 bg-white scroll-smooth pb-32">
-          {filteredProducts.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4">
-              {filteredProducts.map((product) => {
+        <main className="flex-grow overflow-y-auto bg-slate-50/30 scroll-smooth pb-32">
+          {products.length > 0 ? (
+            <div className={cn("grid grid-cols-2 gap-px bg-slate-100 transition-opacity", productsLoading && "opacity-40")}>
+              {products.map((product) => {
                 const quantity = getItemQuantity(product.id);
+                const discount = Math.round(((Number(product.original_price) || Number(product.price)*1.25) - Number(product.price)) / (Number(product.original_price) || Number(product.price)*1.25) * 100);
                 
                 return (
                   <motion.div
                     layout
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
                     key={product.id}
                     onClick={() => navigate(`/product/${product.id}`)}
-                    className="flex flex-col gap-2 group active:scale-[0.98] transition-all cursor-pointer"
+                    className="flex flex-col bg-white p-3 gap-2 group active:bg-slate-50 transition-all cursor-pointer relative"
                   >
-                    <div className="relative aspect-square bg-slate-50 rounded-3xl overflow-hidden border border-slate-100 p-4 transition-all group-hover:shadow-lg group-hover:shadow-slate-100">
+                    <div className="relative aspect-square mb-2">
+                       {/* Top Badges */}
+                       <div className="absolute top-0 right-0 z-10">
+                          <button 
+                            className="p-1.5 text-slate-300 hover:text-red-500 transition-colors"
+                            onClick={(e) => { e.stopPropagation(); toast.success('Added to wishlist'); }}
+                          >
+                             <div className="h-4 w-4 border border-slate-200 rounded-full flex items-center justify-center bg-white shadow-sm">
+                               <Plus className="h-2.5 w-2.5 rotate-45" />
+                             </div>
+                          </button>
+                       </div>
+
                       <img 
                         src={product.image_url || ''} 
                         alt={product.name} 
-                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-500" 
+                        className="w-full h-full object-contain" 
+                        referrerPolicy="no-referrer"
                       />
-                      
-                      {/* Price Tag Overlay */}
-                      <div className="absolute top-2 left-2 flex flex-col">
-                        <div className="bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg border border-slate-100 shadow-sm">
-                           <p className="text-[10px] font-black text-slate-900 leading-none">₹{product.price}</p>
-                        </div>
+
+                      {/* Mock Image Carousel Dots */}
+                      <div className="absolute bottom-0 left-1/2 -translate-x-1/2 flex gap-1 mb-1">
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
+                        <div className="w-1.5 h-1.5 rounded-full bg-slate-200" />
                       </div>
 
-                      {/* Add Button Overlay */}
-                      <div className="absolute bottom-2 right-2">
-                        {quantity > 0 ? (
-                          <div className="flex items-center bg-emerald-600 text-white rounded-xl shadow-lg border border-emerald-500 overflow-hidden h-8">
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); removeFromCart(product.id); }}
-                              className="w-7 h-full flex items-center justify-center active:bg-emerald-700 transition-colors"
-                            >
-                              -
-                            </button>
-                            <span className="px-1 text-[10px] font-black min-w-[1.25rem] text-center">{quantity}</span>
-                            <button 
-                              onClick={(e) => { e.stopPropagation(); addToCart(product); }}
-                              className="w-7 h-full flex items-center justify-center active:bg-emerald-700 transition-colors"
-                            >
-                              +
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={(e) => handleAddToCart(e, product)}
-                            disabled={product.stock <= 0}
-                            className="bg-white border-2 border-emerald-600 text-emerald-600 h-8 px-3 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-lg shadow-emerald-50/50 disabled:opacity-30 disabled:grayscale"
-                          >
-                            ADD
-                          </button>
-                        )}
+                      {/* Veg/Non-veg Indicator */}
+                      <div className="absolute bottom-0 right-0 p-1">
+                         <div className="h-3 w-3 border border-emerald-600 flex items-center justify-center">
+                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-600" />
+                         </div>
                       </div>
                     </div>
 
-                    <div className="px-1">
-                      <h3 className="font-bold text-[11px] text-slate-900 leading-tight mb-1 line-clamp-2 min-h-[2.2em]">{product.name}</h3>
-                      <div className="flex items-center gap-1.5">
-                         <span className="text-[9px] font-bold text-slate-400 line-through">₹{product.original_price || Math.round(product.price * 1.25)}</span>
-                         <span className="text-[9px] font-black text-emerald-600">-{Math.round(((product.original_price || product.price*1.25) - product.price) / (product.original_price || product.price*1.25) * 100)}%</span>
+                    <div className="flex flex-col flex-grow">
+                      <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 mb-1">
+                        <Clock className="h-2.5 w-2.5" />
+                        <span>22 mins</span>
                       </div>
+                      
+                      <h3 className="font-bold text-[11px] text-slate-900 leading-tight mb-1 line-clamp-2 min-h-[2.2em]">
+                        {product.name}
+                      </h3>
+
+                      <div className="flex items-center gap-1 mb-2">
+                        <div className="flex bg-blue-50 text-blue-600 px-1 py-0.5 rounded text-[8px] font-black uppercase items-center gap-1">
+                           <Clock className="h-2 w-2" />
+                           Chilled
+                        </div>
+                      </div>
+
+                      <div className="mt-auto">
+                        <div className="flex items-center gap-1.5">
+                           <span className="text-xs font-black text-slate-900 leading-tight">₹{product.price}</span>
+                           <span className="text-[9px] font-bold text-slate-400 line-through">₹{product.original_price || Math.round(Number(product.price) * 1.25)}</span>
+                        </div>
+                        <p className="text-[9px] font-black text-blue-600 mt-0.5">
+                           {discount}% OFF on MRP
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Add Button Section */}
+                    <div className="absolute bottom-3 right-3 z-10">
+                      {quantity > 0 ? (
+                        <div className="flex items-center bg-emerald-600 text-white rounded shadow-lg overflow-hidden h-7">
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); removeFromCart(product.id); }}
+                            className="w-6 h-full flex items-center justify-center active:bg-emerald-700 transition-colors"
+                          >
+                            -
+                          </button>
+                          <span className="px-1 text-[10px] font-black min-w-[1.125rem] text-center">{quantity}</span>
+                          <button 
+                            onClick={(e) => { e.stopPropagation(); addToCart(product); }}
+                            className="w-6 h-full flex items-center justify-center active:bg-emerald-700 transition-colors"
+                          >
+                            +
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="relative group/add">
+                          <button
+                            onClick={(e) => handleAddToCart(e, product)}
+                            disabled={product.stock <= 0}
+                            className="bg-white border border-emerald-200 text-emerald-600 h-7 px-3 rounded shadow-sm font-black text-[10px] uppercase tracking-wider flex flex-col items-center justify-center min-w-[56px] disabled:opacity-30 disabled:grayscale transition-all active:scale-95 active:shadow-none"
+                          >
+                            <span className="leading-none">ADD</span>
+                            <span className="text-[6px] font-normal text-slate-400 mt-0.5">1 option</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 );
               })}
+            </div>
+          ) : productsLoading ? (
+            <div className="grid grid-cols-2 gap-4">
+               {[1,2,3,4].map(i => (
+                 <div key={i} className="aspect-square bg-slate-50 animate-pulse rounded-3xl" />
+               ))}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center py-20 text-center space-y-4">

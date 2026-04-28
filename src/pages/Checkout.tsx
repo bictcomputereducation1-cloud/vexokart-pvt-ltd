@@ -54,23 +54,37 @@ export default function Checkout() {
   const [vendorLoading, setVendorLoading] = useState(false);
   const [isPincodeServiceable, setIsPincodeServiceable] = useState<boolean | null>(null);
   const [targetAreaId, setTargetAreaId] = useState<string | null>(null);
+  const [nearestVendorId, setNearestVendorId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<'COD' | 'ONLINE' | null>(null);
   const navigate = useNavigate();
 
+  // Helper function for Haversine distance
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
   useEffect(() => {
     if (selectedAddress) {
-      checkServiceability(selectedAddress.pincode);
+      checkServiceability(selectedAddress);
     }
   }, [selectedAddress]);
 
-  const checkServiceability = async (pincode: string) => {
+  const checkServiceability = async (address: Address) => {
     setVendorLoading(true);
     try {
       // 1. Find the service area first
       const { data: area, error: areaError } = await supabase
         .from('serviceable_areas')
         .select('id')
-        .eq('pincode', pincode)
+        .eq('pincode', address.pincode)
         .eq('is_active', true)
         .maybeSingle();
 
@@ -79,26 +93,59 @@ export default function Checkout() {
       if (!area) {
         setIsPincodeServiceable(false);
         setTargetAreaId(null);
+        setNearestVendorId(null);
         return;
       }
 
       setTargetAreaId(area.id);
 
-      // 2. Check for active vendors in this area
-      const { data: vendor, error } = await supabase
+      // 2. Fetch all active vendors in this area
+      const { data: vendors, error } = await supabase
         .from('vendors')
-        .select('user_id')
+        .select('user_id, latitude, longitude')
         .eq('service_area_id', area.id)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
+        .eq('is_active', true);
 
       if (error) throw error;
-      setIsPincodeServiceable(!!vendor);
+
+      if (!vendors || vendors.length === 0) {
+        setIsPincodeServiceable(false);
+        setNearestVendorId(null);
+        return;
+      }
+
+      // 3. Find the nearest vendor using the Haversine formula
+      if (address.latitude && address.longitude) {
+        let minDistance = Infinity;
+        let selectedVendorId = vendors[0].user_id;
+
+        vendors.forEach(v => {
+          if (v.latitude && v.longitude) {
+            const dist = calculateDistance(
+              Number(address.latitude), 
+              Number(address.longitude), 
+              Number(v.latitude), 
+              Number(v.longitude)
+            );
+            if (dist < minDistance) {
+              minDistance = dist;
+              selectedVendorId = v.user_id;
+            }
+          }
+        });
+        
+        setNearestVendorId(selectedVendorId);
+      } else {
+        // Fallback to first vendor if no coordinates
+        setNearestVendorId(vendors[0].user_id);
+      }
+
+      setIsPincodeServiceable(true);
     } catch (error) {
       console.error('Error checking serviceability:', error);
       setIsPincodeServiceable(null);
       setTargetAreaId(null);
+      setNearestVendorId(null);
     } finally {
       setVendorLoading(false);
     }
@@ -140,23 +187,8 @@ export default function Checkout() {
     setLoading(true);
     try {
       // 1. Check for area and vendor availability
-      if (!targetAreaId) {
-        throw new Error("Service area not identified");
-      }
-
-      const { data: vendor, error: vendorError } = await supabase
-        .from('vendors')
-        .select('user_id')
-        .eq('service_area_id', targetAreaId)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (vendorError) {
-        console.error('Vendor check error:', vendorError);
-        toast.error('Could not verify service availability');
-        setLoading(false);
-        return;
+      if (!targetAreaId || !nearestVendorId) {
+        throw new Error("No vendor available in your service area");
       }
 
       const res = await loadRazorpay();
@@ -209,7 +241,7 @@ export default function Checkout() {
               discount_amount: couponDiscountValue,
               coupon_code: appliedCoupon?.code,
               delivery_fee: deliveryFee,
-              vendor_id: vendor?.user_id || null // Pass the found user_id
+              vendor_id: nearestVendorId
             });
 
             if (verifyData.success) {
@@ -269,23 +301,8 @@ export default function Checkout() {
     setLoading(true);
     try {
       // 1. Find assigned vendor for this area
-      if (!targetAreaId) {
-        throw new Error("No service area identified for this pincode");
-      }
-
-      const { data: vendor, error: vendorError } = await supabase
-        .from('vendors')
-        .select('user_id')
-        .eq('service_area_id', targetAreaId)
-        .eq('is_active', true)
-        .limit(1)
-        .maybeSingle();
-
-      if (vendorError) {
-        console.error('Vendor assignment error:', vendorError);
-        toast.error('Could not assign vendor for this order');
-        setLoading(false);
-        return;
+      if (!targetAreaId || !nearestVendorId) {
+        throw new Error("No vendor available in your service area");
       }
 
       const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
@@ -295,7 +312,7 @@ export default function Checkout() {
         .insert([{
           user_id: user?.id,
           total_amount: finalAmount,
-          vendor_id: vendor?.user_id || null, // Optional if no vendor yet, but area is served
+          vendor_id: nearestVendorId,
           service_area_id: targetAreaId,
           pincode: selectedAddress.pincode,
           discount_amount: couponDiscountValue,

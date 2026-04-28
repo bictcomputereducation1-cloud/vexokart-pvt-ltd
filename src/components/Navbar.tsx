@@ -33,47 +33,55 @@ export const Navbar: React.FC<NavbarProps> = ({ onMenuClick }) => {
 
   if (isHome) {
     return (
-      <nav className="sticky top-0 z-50 w-full bg-white shadow-[0_1px_10px_rgba(0,0,0,0.02)]">
+      <nav className="sticky top-0 z-50 w-full bg-white/80 backdrop-blur-md">
         <div className="container mx-auto px-4 py-3">
-          {/* 🔹 Top Row: Location & Profile */}
-          <div className="flex items-center justify-between gap-4 mb-4">
+          <div className="flex items-center gap-3">
+            {/* 🔹 Menu */}
+            <button 
+              onClick={onMenuClick}
+              className="h-11 w-11 flex items-center justify-center bg-slate-50 rounded-xl active:scale-90 transition-all border border-slate-100"
+            >
+              <Menu className="h-6 w-6 text-slate-800" />
+            </button>
+
+            {/* 🔹 Location Selector */}
             <div 
               onClick={() => setIsModalOpen(true)}
-              className="flex items-center gap-2 cursor-pointer flex-grow max-w-[80%]"
+              className="flex items-center gap-2.5 bg-slate-50 border border-slate-100 rounded-2xl px-3.5 py-2 cursor-pointer flex-grow min-w-0 active:scale-[0.98] transition-all"
             >
-              <div className="h-10 w-10 flex-shrink-0 bg-primary/10 flex items-center justify-center rounded-2xl text-primary">
+              <div className="flex items-center justify-center text-[#C49B3B]">
                 <MapPin className="h-5 w-5" />
               </div>
               <div className="flex flex-col min-w-0">
+                <span className="text-[10px] font-bold text-slate-400 leading-none mb-0.5">Deliver to</span>
                 <div className="flex items-center gap-1">
-                  <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Deliver To</span>
-                  <ChevronDown className="h-3 w-3 text-slate-400" />
+                  <span className="text-[13px] font-black text-slate-900 truncate tracking-tight">
+                    {address || 'Set Location...'}
+                  </span>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                 </div>
-                <span className="text-sm font-black text-slate-900 truncate leading-tight">
-                  {address || 'Set Delivery Location'}
+              </div>
+            </div>
+
+            {/* 🔹 Icons (Notif & Cart) */}
+            <div className="flex items-center gap-2">
+              <button className="relative h-11 w-11 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-100 active:scale-95 transition-all">
+                <Bell className="h-5.5 w-5.5 text-slate-800" />
+                <span className="absolute top-2 right-2 h-4 w-4 bg-orange-400 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                  2
                 </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Link to="/profile" className="h-10 w-10 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-900 active:scale-90 transition-all">
-                <User className="h-5 w-5" />
+              </button>
+              <Link 
+                to="/cart" 
+                className="relative h-11 w-11 flex items-center justify-center bg-slate-50 rounded-xl border border-slate-100 active:scale-95 transition-all"
+              >
+                <ShoppingCart className="h-5.5 w-5.5 text-slate-800" />
+                {totalItems > 0 && (
+                  <span className="absolute top-2 right-2 h-4 w-4 bg-orange-400 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">
+                    {totalItems}
+                  </span>
+                )}
               </Link>
-            </div>
-          </div>
-
-          {/* 🔹 Bottom Row: Search Bar */}
-          <div 
-            onClick={() => navigate('/search')}
-            className="relative cursor-pointer"
-          >
-            <div className="flex items-center gap-3 h-12 px-5 bg-slate-50 rounded-2xl border border-slate-100 transition-all active:scale-[0.98]">
-              <Search className="h-5 w-5 text-slate-400" />
-              <span className="text-sm text-slate-400 font-bold tracking-tight">Search "dairy products"</span>
-              <div className="ml-auto flex items-center gap-2 text-slate-300">
-                <div className="h-4 w-[1px] bg-slate-200" />
-                <Mic className="h-5 w-5 hover:text-primary transition-colors" />
-              </div>
             </div>
           </div>
         </div>
