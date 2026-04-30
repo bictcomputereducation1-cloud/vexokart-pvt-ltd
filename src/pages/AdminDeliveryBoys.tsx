@@ -27,27 +27,22 @@ export default function AdminDeliveryBoys() {
   const fetchData = async () => {
     try {
       const [boysRes, areasRes] = await Promise.all([
-        supabase.from('delivery_boys').select(`
-          *,
-          service_areas (
-            id,
-            name,
-            pincode
-          )
-        `).order('created_at', { ascending: false }),
+        fetch('/api/admin/delivery-boys').then(res => res.json()),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
-      if (boysRes.error) {
-        console.error('Delivery boys fetch error:', boysRes.error);
-        toast.error('Failed to load partners: ' + boysRes.error.message);
-      }
-      if (areasRes.error) {
-        console.error('Areas fetch error:', areasRes.error);
+      if (Array.isArray(boysRes)) {
+        setBoys(boysRes);
+      } else {
+        console.error('Delivery boys fetch error:', boysRes);
+        toast.error('Failed to load partners');
       }
 
-      setBoys(boysRes.data || []);
-      setAreas(areasRes.data || []);
+      if (areasRes.error) {
+        console.error('Areas fetch error:', areasRes.error);
+      } else {
+        setAreas(areasRes.data || []);
+      }
     } catch (err: any) {
       console.error('FetchData catch error:', err);
       toast.error('Failed to load data');

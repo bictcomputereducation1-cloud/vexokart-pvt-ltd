@@ -361,6 +361,28 @@ async function startServer() {
     }
   });
 
+  app.get("/api/admin/vendors", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select(`
+          *,
+          service_areas (
+            id,
+            name,
+            pincode
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error: any) {
+      console.error("Fetch vendors error:", error);
+      res.status(500).json({ error: "Failed to fetch vendors" });
+    }
+  });
+
   app.post("/api/admin/delivery-boys", async (req, res) => {
     try {
       const { email, password, name, phone, service_area_id } = req.body;
@@ -435,6 +457,28 @@ async function startServer() {
     } catch (error: any) {
       console.error("Delivery boy creation server error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/api/admin/delivery-boys", async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('delivery_boys')
+        .select(`
+          *,
+          service_areas (
+            id,
+            name,
+            pincode
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      res.json(data);
+    } catch (error: any) {
+      console.error("Fetch delivery boys error:", error);
+      res.status(500).json({ error: "Failed to fetch delivery partners" });
     }
   });
 

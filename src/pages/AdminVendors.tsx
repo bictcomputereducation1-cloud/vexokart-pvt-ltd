@@ -57,27 +57,22 @@ export default function AdminVendors() {
   const fetchData = async () => {
     try {
       const [vendorsRes, areasRes] = await Promise.all([
-        supabase.from('vendors').select(`
-          *,
-          service_areas (
-            id,
-            name,
-            pincode
-          )
-        `).order('created_at', { ascending: false }),
+        fetch('/api/admin/vendors').then(res => res.json()),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
-      if (vendorsRes.error) {
-        console.error('Vendors fetch error:', vendorsRes.error);
-        toast.error('Failed to load vendors: ' + vendorsRes.error.message);
-      }
-      if (areasRes.error) {
-        console.error('Areas fetch error:', areasRes.error);
+      if (Array.isArray(vendorsRes)) {
+        setVendors(vendorsRes);
+      } else {
+        console.error('Vendors fetch error:', vendorsRes);
+        toast.error('Failed to load vendors');
       }
 
-      setVendors(vendorsRes.data || []);
-      setAreas(areasRes.data || []);
+      if (areasRes.error) {
+        console.error('Areas fetch error:', areasRes.error);
+      } else {
+        setAreas(areasRes.data || []);
+      }
     } catch (err: any) {
       console.error('FetchData catch error:', err);
       toast.error('Failed to load data');
