@@ -29,7 +29,7 @@ export default function AdminAreas() {
   const fetchAreas = async () => {
     try {
       const { data, error } = await supabase
-        .from('serviceable_areas')
+        .from('service_areas')
         .select('*')
         .order('city');
       if (error) throw error;
@@ -65,7 +65,7 @@ export default function AdminAreas() {
       if (editingId) {
         // 3. HANDLE ERROR & UPDATE
         const { error, status, statusText } = await supabase
-          .from('serviceable_areas')
+          .from('service_areas')
           .update(dataToSave)
           .eq('id', editingId);
         
@@ -82,7 +82,7 @@ export default function AdminAreas() {
         toast.success('Area updated');
       } else {
         const { error } = await supabase
-          .from('serviceable_areas')
+          .from('service_areas')
           .insert([dataToSave]);
         if (error) throw error;
         toast.success('Area added');
@@ -102,7 +102,7 @@ export default function AdminAreas() {
   const deleteArea = async (id: string) => {
     if (!confirm('Are you sure? This will affect vendors and delivery boys in this area.')) return;
     try {
-      const { error } = await supabase.from('serviceable_areas').delete().eq('id', id);
+      const { error } = await supabase.from('service_areas').delete().eq('id', id);
       if (error) throw error;
       setAreas(areas.filter(a => a.id !== id));
       toast.success('Area removed');

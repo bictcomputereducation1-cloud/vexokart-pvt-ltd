@@ -90,7 +90,7 @@ export default function Checkout() {
       
       // A. check by pincode first
       const { data: areaByPincode, error: areaError } = await supabase
-        .from('serviceable_areas')
+        .from('service_areas')
         .select('id, latitude, longitude, radius_km')
         .eq('pincode', address.pincode)
         .eq('is_active', true)
@@ -103,7 +103,7 @@ export default function Checkout() {
       } else if (address.latitude && address.longitude) {
         // B. check by coordinates if pincode didn't match (optional/fallback)
         const { data: allAreas } = await supabase
-          .from('serviceable_areas')
+          .from('service_areas')
           .select('id, latitude, longitude, radius_km')
           .eq('is_active', true);
         

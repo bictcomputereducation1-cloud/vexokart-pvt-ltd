@@ -104,7 +104,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     try {
       // 1. Try pincode match first
       const { data: areaByPincode } = await supabase
-        .from('serviceable_areas')
+        .from('service_areas')
         .select('*')
         .eq('pincode', newPincode)
         .eq('is_active', true)
@@ -116,7 +116,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } else if (lat && lng) {
         // 2. Try nearby check if we have lat/lng
         const { data: allAreas } = await supabase
-          .from('serviceable_areas')
+          .from('service_areas')
           .select('*')
           .eq('is_active', true);
         

@@ -27,8 +27,8 @@ export default function AdminDeliveryBoys() {
   const fetchData = async () => {
     try {
       const [boysRes, areasRes] = await Promise.all([
-        supabase.from('delivery_boys').select('*, service_area:serviceable_areas(city, pincode)').order('created_at', { ascending: false }),
-        supabase.from('serviceable_areas').select('*').eq('is_active', true).order('city')
+        supabase.from('delivery_boys').select('*, service_areas(city, pincode)').order('created_at', { ascending: false }),
+        supabase.from('service_areas').select('*').eq('is_active', true).order('city')
       ]);
       
       if (boysRes.error) {
@@ -156,12 +156,12 @@ export default function AdminDeliveryBoys() {
                     </span>
                   </td>
                   <td className="p-6">
-                    {boy.service_area ? (
+                    {boy.service_areas ? (
                       <div>
                         <div className="flex items-center gap-1 font-black text-sm text-slate-700">
-                          <MapPin className="h-3 w-3 text-primary" /> {boy.service_area.city}
+                          <MapPin className="h-3 w-3 text-primary" /> {boy.service_areas.city}
                         </div>
-                        <p className="text-[10px] font-black text-slate-400 ml-4">{boy.service_area.pincode}</p>
+                        <p className="text-[10px] font-black text-slate-400 ml-4">{boy.service_areas.pincode}</p>
                       </div>
                     ) : (
                       <span className="text-[10px] font-black uppercase text-red-400 bg-red-50 px-2 py-1 rounded-lg">No Zone</span>

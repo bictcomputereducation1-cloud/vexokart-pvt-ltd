@@ -82,7 +82,7 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
     try {
       // Direct check against Supabase
       const { data: areaByPincode } = await supabase
-        .from('serviceable_areas')
+        .from('service_areas')
         .select('*')
         .eq('pincode', pincode)
         .eq('is_active', true)
@@ -93,7 +93,7 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
         serviceable = true;
       } else {
         const { data: allAreas } = await supabase
-          .from('serviceable_areas')
+          .from('service_areas')
           .select('*')
           .eq('is_active', true);
         

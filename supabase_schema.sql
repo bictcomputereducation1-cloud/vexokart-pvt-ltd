@@ -9,8 +9,8 @@ CREATE TABLE users (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
--- Serviceable Areas for delivery
-CREATE TABLE serviceable_areas (
+-- Service areas for delivery
+CREATE TABLE service_areas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   pincode TEXT UNIQUE NOT NULL,
   city TEXT NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE vendors (
   address TEXT,
   latitude DECIMAL(10, 8),
   longitude DECIMAL(11, 8),
-  service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
+  service_area_id UUID REFERENCES service_areas(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -43,7 +43,7 @@ CREATE TABLE delivery_boys (
   phone TEXT NOT NULL,
   email TEXT NOT NULL,
   vehicle_type TEXT CHECK (vehicle_type IN ('BIKE', 'SCOOTER', 'CYCLE')),
-  service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
+  service_area_id UUID REFERENCES service_areas(id) ON DELETE SET NULL,
   is_active BOOLEAN DEFAULT true,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
@@ -102,7 +102,7 @@ CREATE TABLE orders (
   coupon_code TEXT,
   delivery_fee DECIMAL(10, 2) DEFAULT 0,
   vendor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  service_area_id UUID NOT NULL REFERENCES serviceable_areas(id) ON DELETE RESTRICT,
+  service_area_id UUID NOT NULL REFERENCES service_areas(id) ON DELETE RESTRICT,
   status TEXT DEFAULT 'placed' CHECK (status IN ('placed', 'accepted', 'packed', 'ready_for_delivery', 'picked', 'out_for_delivery', 'delivered', 'cancelled', 'rejected')),
   payment_method TEXT CHECK (payment_method IN ('cod', 'online')),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
@@ -211,10 +211,10 @@ CREATE POLICY "Vendors and drivers can view relevant orders" ON orders FOR SELEC
   (EXISTS (SELECT 1 FROM delivery_boys WHERE user_id = auth.uid() AND service_area_id = orders.service_area_id))
 );
 
--- RLS for serviceable_areas
-ALTER TABLE serviceable_areas ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can view areas" ON serviceable_areas FOR SELECT USING (true);
-CREATE POLICY "Admins can manage areas" ON serviceable_areas FOR ALL USING (public.is_admin());
+-- RLS for service_areas
+ALTER TABLE service_areas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can view areas" ON service_areas FOR SELECT USING (true);
+CREATE POLICY "Admins can manage areas" ON service_areas FOR ALL USING (public.is_admin());
 
 -- Order Items: Users can view own items, Admins can manage all
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;

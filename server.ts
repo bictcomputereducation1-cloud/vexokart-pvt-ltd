@@ -32,7 +32,7 @@ async function resolveOrderAssignment(pincode: string, lat?: number, lng?: numbe
   try {
     // 1. Resolve serviceable area
     const { data: area } = await supabase
-      .from('serviceable_areas')
+      .from('service_areas')
       .select('id, latitude, longitude')
       .eq('pincode', pincode)
       .eq('is_active', true)
@@ -293,7 +293,7 @@ async function startServer() {
       // Resolve Service Area if not provided but lat/lng is available
       let targetAreaId = service_area_id;
       if (!targetAreaId && latitude && longitude) {
-        const { data: areas } = await supabase.from('serviceable_areas').select('*').eq('is_active', true);
+        const { data: areas } = await supabase.from('service_areas').select('*').eq('is_active', true);
         if (areas) {
           // Simplistic nearest match
           const nearest = areas.reduce((prev, curr) => {
