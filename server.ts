@@ -11,9 +11,20 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Helper to clean environment variables (removes quotes and whitespace)
+const cleanEnvVar = (value: string | undefined) => {
+  if (!value) return "";
+  return value.trim().replace(/^["']|["']$/g, "").trim();
+};
+
 // Initialize Supabase Client
-const supabaseUrl = process.env.VITE_SUPABASE_URL || "";
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || "";
+const supabaseUrl = cleanEnvVar(process.env.VITE_SUPABASE_URL);
+const supabaseKey = cleanEnvVar(process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY);
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("CRITICAL: Supabase environment variables are missing!");
+}
+
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function startServer() {
@@ -22,19 +33,13 @@ async function startServer() {
 
   app.use(express.json());
 
-  // Helper to clean environment variables (removes quotes and whitespace)
-  const cleanEnvVar = (value: string | undefined) => {
-    if (!value) return "";
-    return value.trim().replace(/^["']|["']$/g, "").trim();
-  };
-
   // API Routes
   app.post("/api/payment/order", async (req, res) => {
     try {
       const { amount, currency = "INR", receipt } = req.body;
       
-      const razorpayKeyId = process.env.RAZORPAY_KEY_ID?.trim();
-      const razorpayKeySecret = (process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET)?.trim();
+      const razorpayKeyId = cleanEnvVar(process.env.RAZORPAY_KEY_ID);
+      const razorpayKeySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET);
 
       console.log(`[DEBUG] Razorpay Key ID loaded: ${razorpayKeyId ? 'YES (' + razorpayKeyId.slice(0, 4) + '...)' : 'MISSING'}`);
       console.log(`[DEBUG] Razorpay Key Secret loaded: ${razorpayKeySecret ? 'YES (' + razorpayKeySecret.slice(0, 2) + '...)' : 'MISSING'}`);
@@ -47,7 +52,7 @@ async function startServer() {
       }
 
       // Create Basic Authentication header
-      const auth = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
+      const authHeader = Buffer.from(`${razorpayKeyId}:${razorpayKeySecret}`).toString('base64');
 
       console.log(`Initiating Razorpay order for ${amount} INR...`);
 
@@ -55,7 +60,7 @@ async function startServer() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Basic ${auth}`
+          "Authorization": `Basic ${authHeader}`
         },
         body: JSON.stringify({
           amount: Math.round(Number(amount) * 100),
@@ -67,7 +72,7 @@ async function startServer() {
       const order = await response.json();
 
       if (response.status !== 200 && response.status !== 201) {
-        console.error("Razorpay API order creation failed:", order);
+        console.error("Razorpay API order creation failed:", JSON.stringify(order, null, 2));
         return res.status(response.status).json({
           error: "Razorpay order creation failed",
           details: order
@@ -101,22 +106,23 @@ async function startServer() {
         latitude,
         longitude
       } = req.body;
-
-      const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-
+ 
+      const razorpayKeySecret = cleanEnvVar(process.env.RAZORPAY_KEY_SECRET || process.env.RAZORPAY_SECRET);
+ 
       // 1. Verify signature
       const sign = razorpay_order_id + "|" + razorpay_payment_id;
       const expectedSign = crypto
         .createHmac("sha256", razorpayKeySecret)
         .update(sign.toString())
         .digest("hex");
-
+ 
       if (razorpay_signature !== expectedSign) {
+        console.error("Razorpay signature verification failed");
         return res.status(400).json({ success: false, message: "Invalid signature" });
       }
-
+ 
       console.log("Payment verified for area:", service_area_id);
-
+ 
       // 2. Create order in Supabase
       const orderEntry: any = {
         user_id: userId,
@@ -136,13 +142,13 @@ async function startServer() {
         latitude: latitude || null,
         longitude: longitude || null
       };
-
+ 
       let { data: newOrder, error: orderError } = await supabase
         .from('orders')
         .insert([orderEntry])
         .select()
         .single();
-
+ 
       if (orderError && (orderError.message?.includes('latitude') || orderError.message?.includes('longitude'))) {
         console.warn("Retrying order creation without GPS coordinates due to schema mismatch");
         const { latitude: _, longitude: __, ...fallbackEntry } = orderEntry;
@@ -154,9 +160,9 @@ async function startServer() {
         newOrder = retryResult.data;
         orderError = retryResult.error;
       }
-
+ 
       if (orderError) {
-        console.error("Order creation error:", orderError);
+        console.error("Order creation error:", JSON.stringify(orderError, null, 2));
         throw orderError;
       }
 
@@ -249,8 +255,11 @@ async function startServer() {
         });
 
       if (userError) {
-        console.error("User table error:", userError);
-        return res.status(500).json({ error: "Failed to create user record" });
+        console.error("User table error:", JSON.stringify(userError, null, 2));
+        return res.status(500).json({ 
+          error: "Failed to create user record",
+          details: userError
+        });
       }
 
       // 3. Create vendor record
@@ -268,8 +277,11 @@ async function startServer() {
         });
 
       if (vendorError) {
-        console.error("Vendor insert error:", vendorError);
-        return res.status(500).json({ error: "Failed to create vendor details" });
+        console.error("Vendor insert error:", JSON.stringify(vendorError, null, 2));
+        return res.status(500).json({ 
+          error: "Failed to create vendor details",
+          details: vendorError
+        });
       }
 
       res.status(201).json({ success: true, message: "Vendor created successfully" });
@@ -342,8 +354,11 @@ async function startServer() {
         });
 
       if (dboyError) {
-        console.error("Delivery boy insert error:", dboyError);
-        return res.status(500).json({ error: "Failed to create delivery partner details" });
+        console.error("Delivery boy insert error:", JSON.stringify(dboyError, null, 2));
+        return res.status(500).json({ 
+          error: "Failed to create delivery partner details",
+          details: dboyError
+        });
       }
 
       res.status(201).json({ success: true, message: "Delivery partner created successfully" });
