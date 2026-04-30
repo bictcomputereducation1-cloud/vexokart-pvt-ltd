@@ -14,6 +14,7 @@ export default function AdminAreas() {
   const [showMap, setShowMap] = useState(true);
 
   const [formData, setFormData] = useState({
+    name: '',
     city: '',
     pincode: '',
     latitude: 0,
@@ -54,6 +55,7 @@ export default function AdminAreas() {
     try {
       // 2. EXPLICIT FIELDS
       const dataToSave = {
+        name: formData.name.trim() || formData.city.trim(),
         city: formData.city.trim(),
         pincode: formData.pincode.trim(),
         latitude: Number(formData.latitude),
@@ -90,7 +92,7 @@ export default function AdminAreas() {
       setIsAdding(false);
       setEditingId(null);
       fetchAreas();
-      setFormData({ city: '', pincode: '', latitude: 0, longitude: 0, radius_km: 10, is_active: true });
+      setFormData({ name: '', city: '', pincode: '', latitude: 0, longitude: 0, radius_km: 10, is_active: true });
     } catch (err: any) {
       console.error('Operation failed:', err);
       toast.error(err.message || 'Operation failed');
@@ -164,13 +166,24 @@ export default function AdminAreas() {
               {/* Form Section */}
               <form onSubmit={handleSave} className="space-y-4">
                 <div className="space-y-1">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">City / Region Name</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Area Name (e.g. North Zone)</label>
+                  <input 
+                    required
+                    value={formData.name}
+                    onChange={e => setFormData({...formData, name: e.target.value})}
+                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
+                    placeholder="e.g. Sopore Cental"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">City / Region</label>
                   <input 
                     required
                     value={formData.city}
                     onChange={e => setFormData({...formData, city: e.target.value})}
                     className="w-full bg-slate-50 rounded-2xl p-4 font-bold border-2 border-transparent focus:border-primary outline-none transition-all"
-                    placeholder="e.g. Sopore Cental"
+                    placeholder="e.g. Sopore"
                   />
                 </div>
 
@@ -239,6 +252,7 @@ export default function AdminAreas() {
                   onClick={() => {
                     setEditingId(area.id);
                     setFormData({
+                      name: area.name || area.city,
                       city: area.city,
                       pincode: area.pincode,
                       latitude: area.latitude || 0,
@@ -257,7 +271,8 @@ export default function AdminAreas() {
               </div>
             </div>
 
-            <h3 className="text-xl font-black text-slate-900 mb-1">{area.city}</h3>
+            <h3 className="text-xl font-black text-slate-900 mb-1">{area.name || area.city}</h3>
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">{area.city}</p>
             <div className="flex items-center gap-2 text-slate-500 font-bold text-xs mb-4">
               <span className="bg-slate-100 px-2 py-0.5 rounded-lg">{area.pincode}</span>
               <span className="w-1 h-1 bg-slate-300 rounded-full" />

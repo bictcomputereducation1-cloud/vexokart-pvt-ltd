@@ -57,7 +57,15 @@ export default function AdminVendors() {
   const fetchData = async () => {
     try {
       const [vendorsRes, areasRes] = await Promise.all([
-        supabase.from('vendors').select('*, service_areas(city, pincode)').order('created_at', { ascending: false }),
+        supabase.from('vendors').select(`
+          *,
+          service_areas (
+            id,
+            name,
+            pincode,
+            city
+          )
+        `).order('created_at', { ascending: false }),
         supabase.from('service_areas').select('*').eq('is_active', true).order('city')
       ]);
       
@@ -258,12 +266,12 @@ export default function AdminVendors() {
                     {vendor.service_areas ? (
                       <div>
                         <div className="flex items-center gap-1 font-black text-sm text-slate-700">
-                           {vendor.service_areas.city}
+                           {vendor.service_areas.name || vendor.service_areas.city}
                         </div>
                         <p className="text-[10px] font-black text-slate-400">{vendor.service_areas.pincode}</p>
                       </div>
                     ) : (
-                      <span className="text-[10px] font-black uppercase text-red-400 bg-red-50 px-2 py-1 rounded-lg">Unassigned</span>
+                      <span className="text-[10px] font-black uppercase text-red-400 bg-red-50 px-2 py-1 rounded-lg">Not Assigned</span>
                     )}
                   </td>
                   <td className="p-6">

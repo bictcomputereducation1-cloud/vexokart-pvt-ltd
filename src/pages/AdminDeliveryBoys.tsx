@@ -27,7 +27,15 @@ export default function AdminDeliveryBoys() {
   const fetchData = async () => {
     try {
       const [boysRes, areasRes] = await Promise.all([
-        supabase.from('delivery_boys').select('*, service_areas(city, pincode)').order('created_at', { ascending: false }),
+        supabase.from('delivery_boys').select(`
+          *,
+          service_areas (
+            id,
+            name,
+            pincode,
+            city
+          )
+        `).order('created_at', { ascending: false }),
         supabase.from('service_areas').select('*').eq('is_active', true).order('city')
       ]);
       
@@ -159,12 +167,12 @@ export default function AdminDeliveryBoys() {
                     {boy.service_areas ? (
                       <div>
                         <div className="flex items-center gap-1 font-black text-sm text-slate-700">
-                          <MapPin className="h-3 w-3 text-primary" /> {boy.service_areas.city}
+                          <MapPin className="h-3 w-3 text-primary" /> {boy.service_areas.name || boy.service_areas.city}
                         </div>
                         <p className="text-[10px] font-black text-slate-400 ml-4">{boy.service_areas.pincode}</p>
                       </div>
                     ) : (
-                      <span className="text-[10px] font-black uppercase text-red-400 bg-red-50 px-2 py-1 rounded-lg">No Zone</span>
+                      <span className="text-[10px] font-black uppercase text-red-400 bg-red-50 px-2 py-1 rounded-lg">Not Assigned</span>
                     )}
                   </td>
                   <td className="p-6">

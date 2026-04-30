@@ -84,6 +84,7 @@ export interface Address {
 
 export interface ServiceableArea {
   id: string;
+  name: string;
   pincode: string;
   city: string;
   latitude: number | null;

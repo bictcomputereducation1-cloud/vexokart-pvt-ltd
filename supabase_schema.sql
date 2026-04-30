@@ -12,6 +12,7 @@ CREATE TABLE users (
 -- Service areas for delivery
 CREATE TABLE service_areas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
   pincode TEXT UNIQUE NOT NULL,
   city TEXT NOT NULL,
   latitude DECIMAL(10, 8),
