@@ -352,45 +352,27 @@ export default function Checkout() {
 
       const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
       
-      const { data: newOrder, error: orderError } = await supabase
-        .from('orders')
-        .insert([{
-          user_id: user?.id,
-          total_amount: finalAmount,
-          vendor_id: nearestVendorId,
-          service_area_id: targetAreaId,
-          pincode: selectedAddress.pincode,
-          discount_amount: couponDiscountValue,
-          coupon_code: appliedCoupon?.code,
-          delivery_fee: deliveryFee,
-          status: 'placed',
-          payment_method: 'cod',
-          payment_status: 'pending',
-          address: fullAddressText,
-          latitude: selectedAddress.latitude,
-          longitude: selectedAddress.longitude
-        }])
-        .select()
-        .single();
+      const { data: response } = await axios.post('/api/orders/cod', {
+        userId: user?.id,
+        amount: finalAmount,
+        items: items,
+        address: fullAddressText,
+        pincode: selectedAddress.pincode,
+        discount_amount: couponDiscountValue,
+        coupon_code: appliedCoupon?.code,
+        delivery_fee: deliveryFee,
+        latitude: selectedAddress.latitude,
+        longitude: selectedAddress.longitude
+      });
 
-      if (orderError) throw orderError;
-
-      const orderItems = items.map(item => ({
-        order_id: newOrder.id,
-        product_id: item.id,
-        quantity: item.quantity,
-        price: item.price
-      }));
-
-      const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
-      if (itemsError) throw itemsError;
+      if (!response.success) throw new Error(response.error || 'Failed to place order');
 
       toast.success('Order Placed! (COD)');
       clearCart();
-      navigate(`/order-success/${newOrder.id}`);
+      navigate(`/order-success/${response.orderId}`);
     } catch (error: any) {
       console.error('COD placement error:', error);
-      toast.error('Failed to place order');
+      toast.error(error.message || 'Failed to place order');
     } finally {
       setLoading(false);
     }

@@ -56,10 +56,10 @@ export default function VendorDashboard() {
           event: 'INSERT',
           schema: 'public',
           table: 'orders',
-          filter: `service_area_id=eq.${vendorData.service_area_id}`
+          filter: `vendor_id=eq.${profile?.id}`
         },
         (payload) => {
-          console.log('New area order received:', payload.new);
+          console.log('New assigned order received:', payload.new);
           handleNewOrder(payload.new as Order);
         }
       )
@@ -138,8 +138,7 @@ export default function VendorDashboard() {
       const { data: orders, error } = await supabase
         .from('orders')
         .select('*, users(name, email)')
-        .eq('service_area_id', vendor.service_area_id)
-        .or(`vendor_id.is.null,vendor_id.eq.${profile?.id}`)
+        .eq('vendor_id', profile?.id)
         .order('created_at', { ascending: false });
 
       if (error) {

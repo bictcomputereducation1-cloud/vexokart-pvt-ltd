@@ -27,6 +27,53 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Helper to resolve service area and vendor from pincode
+async function resolveOrderAssignment(pincode: string, lat?: number, lng?: number) {
+  try {
+    // 1. Resolve serviceable area
+    const { data: area } = await supabase
+      .from('serviceable_areas')
+      .select('id, latitude, longitude')
+      .eq('pincode', pincode)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!area) return { service_area_id: null, vendor_id: null };
+
+    // 2. Find vendors for this area
+    const { data: vendors } = await supabase
+      .from('vendors')
+      .select('user_id, latitude, longitude')
+      .eq('service_area_id', area.id)
+      .eq('is_active', true);
+
+    if (!vendors || vendors.length === 0) {
+      return { service_area_id: area.id, vendor_id: null };
+    }
+
+    // 3. Simple assignment: Nearest if coords available, else first
+    let assignedVendorId = vendors[0].user_id;
+
+    if (lat && lng) {
+      let minDistance = Infinity;
+      vendors.forEach(v => {
+        if (v.latitude && v.longitude) {
+          const dist = Math.sqrt(Math.pow(Number(v.latitude) - lat, 2) + Math.pow(Number(v.longitude) - lng, 2));
+          if (dist < minDistance) {
+            minDistance = dist;
+            assignedVendorId = v.user_id;
+          }
+        }
+      });
+    }
+
+    return { service_area_id: area.id, vendor_id: assignedVendorId };
+  } catch (error) {
+    console.error("Assignment resolution error:", error);
+    return { service_area_id: null, vendor_id: null };
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -123,12 +170,17 @@ async function startServer() {
  
       console.log("Payment verified for area:", service_area_id);
  
+      // Auto-resolve assignment if missing or as primary source of truth
+      const assignment = await resolveOrderAssignment(pincode, latitude, longitude);
+      const finalVendorId = vendor_id || assignment.vendor_id;
+      const finalAreaId = service_area_id || assignment.service_area_id;
+
       // 2. Create order in Supabase
       const orderEntry: any = {
         user_id: userId,
         total_amount: amount,
-        vendor_id: vendor_id || null,
-        service_area_id: service_area_id,
+        vendor_id: finalVendorId,
+        service_area_id: finalAreaId,
         pincode: pincode,
         discount_amount: discount_amount || 0,
         coupon_code: coupon_code || null,
@@ -364,6 +416,80 @@ async function startServer() {
       res.status(201).json({ success: true, message: "Delivery partner created successfully" });
     } catch (error: any) {
       console.error("Delivery boy creation server error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.post("/api/orders/cod", async (req, res) => {
+    try {
+      const { 
+        userId,
+        amount,
+        items,
+        address,
+        pincode,
+        discount_amount,
+        coupon_code,
+        delivery_fee,
+        latitude,
+        longitude
+      } = req.body;
+
+      if (!userId || !items || !pincode) {
+        return res.status(400).json({ error: "Missing required order data" });
+      }
+
+      // Auto-resolve assignment
+      const assignment = await resolveOrderAssignment(pincode, latitude, longitude);
+      
+      if (!assignment.service_area_id) {
+        return res.status(400).json({ error: "Pincode not serviceable" });
+      }
+
+      const orderEntry = {
+        user_id: userId,
+        total_amount: amount,
+        vendor_id: assignment.vendor_id,
+        service_area_id: assignment.service_area_id,
+        pincode: pincode,
+        discount_amount: discount_amount || 0,
+        coupon_code: coupon_code || null,
+        delivery_fee: delivery_fee || 0,
+        status: 'placed',
+        payment_method: 'cod',
+        payment_status: 'pending',
+        address: address,
+        latitude: latitude || null,
+        longitude: longitude || null
+      };
+
+      let { data: newOrder, error: orderError } = await supabase
+        .from('orders')
+        .insert([orderEntry])
+        .select()
+        .single();
+
+      if (orderError) {
+        console.error("COD Order creation error:", orderError);
+        return res.status(500).json({ error: "Failed to create order", details: orderError });
+      }
+
+      const orderItems = items.map((item: any) => ({
+        order_id: newOrder.id,
+        product_id: item.id,
+        quantity: item.quantity,
+        price: item.price
+      }));
+
+      const { error: itemsError } = await supabase.from('order_items').insert(orderItems);
+      if (itemsError) {
+        console.error("COD Items insertion error:", itemsError);
+        throw itemsError;
+      }
+
+      res.status(201).json({ success: true, message: "Order placed successfully (COD)", orderId: newOrder.id });
+    } catch (error) {
+      console.error("COD Order Error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
