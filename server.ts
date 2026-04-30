@@ -261,25 +261,37 @@ async function startServer() {
     }
   });
 
-  app.post("/api/admin/vendors", async (req, res) => {
+  // GET vendors
+  app.get("/api/admin/vendors", async (req, res) => {
     try {
-      const { email, password, storeName, phone, service_area_id, latitude, longitude, address } = req.body;
+      const { data, error } = await supabase
+        .from("vendors")
+        .select("*, service_areas(*)")
+        .order('created_at', { ascending: false });
 
-      if (!email || !password || !storeName || !phone) {
-        return res.status(400).json({ error: "Missing required fields" });
+      if (error) {
+        return res.status(500).json({ error: error.message });
       }
 
-      // 1. Check if user already exists
-      const { data: existingUser } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', email)
-        .maybeSingle();
+      res.json(data);
+    } catch (error: any) {
+      console.error("Fetch vendors error:", error);
+      res.status(500).json({ error: "Failed to fetch vendors" });
+    }
+  });
 
-      let userId = existingUser?.id;
+  // POST vendor
+  app.post("/api/admin/vendors", async (req, res) => {
+    try {
+      const body = req.body;
+      const { email, phone, service_area_id, latitude, longitude, password } = body;
+      const name = body.name || body.storeName;
 
-      if (!userId) {
-        // Create auth user using standard signUp
+      if (!email || !name) {
+        return res.status(400).json({ error: "Missing required fields (email and name/storeName)" });
+      }
+      let userId = null;
+      if (password) {
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email,
           password,
@@ -290,102 +302,92 @@ async function startServer() {
           return res.status(400).json({ error: authError?.message || "Failed to create user" });
         }
         userId = authData.user.id;
-      } else {
-        // Check if already a vendor
-        const { data: existingVendor } = await supabase
-          .from("vendors")
-          .select("id")
-          .eq("user_id", userId)
-          .maybeSingle();
 
-        if (existingVendor) {
-          return res.status(400).json({ error: "User is already a vendor" });
-        }
-      }
-
-      // Resolve Service Area if not provided but lat/lng is available
-      let targetAreaId = service_area_id;
-      if (!targetAreaId && latitude && longitude) {
-        const { data: areas } = await supabase.from('service_areas').select('*').eq('is_active', true);
-        if (areas) {
-          // Simplistic nearest match
-          const nearest = areas.reduce((prev, curr) => {
-            const distPrev = Math.sqrt(Math.pow(prev.latitude - latitude, 2) + Math.pow(prev.longitude - longitude, 2));
-            const distCurr = Math.sqrt(Math.pow(curr.latitude - latitude, 2) + Math.pow(curr.longitude - longitude, 2));
-            return distPrev < distCurr ? prev : curr;
-          });
-          targetAreaId = nearest.id;
-        }
-      }
-
-      // 2. Insert/Update users table as vendor (handling potential trigger race conditions)
-      const { error: userError } = await supabase
-        .from("users")
-        .upsert({
+        // Sync to users table
+        await supabase.from("users").upsert({
           id: userId,
           email: email,
-          name: storeName,
+          name: name,
           role: "vendor",
         });
-
-      if (userError) {
-        console.error("User table error:", JSON.stringify(userError, null, 2));
-        return res.status(500).json({ 
-          error: "Failed to create user record",
-          details: userError
-        });
       }
 
-      // 3. Create vendor record
-      const { error: vendorError } = await supabase
-        .from("vendors")
-        .insert({
+      const { data, error } = await supabase.from("vendors").insert([
+        { 
+          name, 
+          email, 
+          phone, 
+          service_area_id, 
+          latitude, 
+          longitude,
           user_id: userId,
-          store_name: storeName,
-          name: storeName, // Added for compatibility
-          email: email, // Added for frontend table display
-          phone: phone,
-          service_area_id: targetAreaId,
-          latitude: latitude,
-          longitude: longitude,
-          address: address,
-          is_active: true,
-        });
+          store_name: name, // Fallback for components expecting store_name
+          is_active: true
+        },
+      ]).select();
 
-      if (vendorError) {
-        console.error("Vendor insert error:", JSON.stringify(vendorError, null, 2));
-        return res.status(500).json({ 
-          error: "Failed to create vendor details",
-          details: vendorError
-        });
+      if (error) {
+        return res.status(500).json({ error: error.message });
       }
 
-      res.status(201).json({ success: true, message: "Vendor created successfully" });
+      return res.json({ success: true, data });
     } catch (error: any) {
-      console.error("Vendor creation server error:", error);
+      console.error("Vendor creation error:", error);
       res.status(500).json({ error: "Internal server error" });
     }
   });
 
-  app.get("/api/admin/vendors", async (req, res) => {
+  // POST order (General)
+  app.post("/api/orders", async (req, res) => {
     try {
-      const { data, error } = await supabase
-        .from('vendors')
-        .select(`
-          *,
-          service_areas (
-            id,
-            name,
-            pincode
-          )
-        `)
-        .order('created_at', { ascending: false });
+      const body = req.body;
+      const { items, address, pincode, userId } = body;
 
-      if (error) throw error;
-      res.json(data);
+      // find service area
+      const { data: area } = await supabase
+        .from("service_areas")
+        .select("id")
+        .eq("pincode", pincode)
+        .single();
+
+      if (!area) {
+        return res.status(400).json({ error: "No service area" });
+      }
+
+      // find vendor
+      const { data: vendor } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("service_area_id", area.id)
+        .maybeSingle();
+
+      if (!vendor) {
+        return res.status(400).json({ error: "No vendor found" });
+      }
+
+      const { data, error } = await supabase.from("orders").insert([
+        {
+          items,
+          address,
+          pincode,
+          vendor_id: vendor.id,
+          service_area_id: area.id,
+          user_id: userId || null,
+          total_amount: items.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0),
+          status: 'placed',
+          payment_method: 'cod', // Default for this generic route
+          payment_status: 'pending'
+        },
+      ]).select();
+
+      if (error) {
+        return res.status(500).json({ error: error.message });
+      }
+
+      return res.json({ success: true, data });
     } catch (error: any) {
-      console.error("Fetch vendors error:", error);
-      res.status(500).json({ error: "Failed to fetch vendors" });
+      console.error("Order creation error:", error);
+      res.status(500).json({ error: "Internal server error" });
     }
   });
 
