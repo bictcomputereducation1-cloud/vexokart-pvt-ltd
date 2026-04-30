@@ -73,7 +73,17 @@ export default function AdminDeliveryBoys() {
         })
       });
 
-      const result = await response.json();
+      const text = await response.text();
+      console.log("Raw delivery boy creation response:", text);
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON response from server:", text);
+        throw new Error("Server returned non-JSON response");
+      }
+
       if (!response.ok) throw new Error(result.error || 'Registration failed');
 
       toast.success('Delivery partner registered and account created');

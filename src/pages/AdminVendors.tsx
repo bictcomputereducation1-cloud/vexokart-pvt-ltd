@@ -93,7 +93,22 @@ export default function AdminVendors() {
     setGeocoding(true);
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-      const data = await res.json();
+      const text = await res.text();
+      console.log("Raw Nominatim response:", text);
+
+      if (!res.ok) {
+        console.error("Nominatim API Error:", text);
+        throw new Error("Nominatim API failed");
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON from Nominatim:", text);
+        throw new Error("Nominatim returned non-JSON response");
+      }
+
       if (data.display_name) {
         setFormData(prev => ({ ...prev, address: data.display_name }));
       }
@@ -156,7 +171,17 @@ export default function AdminVendors() {
         })
       });
 
-      const result = await response.json();
+      const text = await response.text();
+      console.log("Raw vendor creation response:", text);
+
+      let result;
+      try {
+        result = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON response from server:", text);
+        throw new Error("Server returned non-JSON response");
+      }
+
       if (!response.ok) throw new Error(result.error || 'Failed to add vendor');
 
       toast.success('Vendor added and account created successfully');

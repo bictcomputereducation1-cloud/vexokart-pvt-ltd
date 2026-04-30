@@ -33,7 +33,23 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
       const response = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
       );
-      const data = await response.json();
+      
+      const text = await response.text();
+      console.log("Raw location search response:", text);
+
+      if (!response.ok) {
+        console.error("Location search API Error:", text);
+        throw new Error("Location search API failed");
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON from location search:", text);
+        throw new Error("Location search returned non-JSON response");
+      }
+
       if (data && data.length > 0) {
         const result = data[0];
         setLat(parseFloat(result.lat));

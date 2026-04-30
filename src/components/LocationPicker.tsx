@@ -56,7 +56,22 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
         `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
         { headers: { 'Accept-Language': 'en' } }
       );
-      const data = await response.json();
+      
+      const text = await response.text();
+      console.log("Raw reverse geocoding response:", text);
+
+      if (!response.ok) {
+        console.error("Reverse geocoding API Error:", text);
+        throw new Error("Reverse geocoding API failed");
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON from reverse geocoding:", text);
+        throw new Error("Reverse geocoding returned non-JSON response");
+      }
       
       if (data && data.address) {
         const addr = data.display_name;

@@ -116,7 +116,16 @@ async function startServer() {
         })
       });
 
-      const order = await response.json();
+      const text = await response.text();
+      console.log("Raw Razorpay order response:", text);
+
+      let order;
+      try {
+        order = JSON.parse(text);
+      } catch (err) {
+        console.error("Invalid JSON response from Razorpay:", text);
+        return res.status(500).json({ error: "Razorpay returned non-JSON response" });
+      }
 
       if (response.status !== 200 && response.status !== 201) {
         console.error("Razorpay API order creation failed:", JSON.stringify(order, null, 2));
