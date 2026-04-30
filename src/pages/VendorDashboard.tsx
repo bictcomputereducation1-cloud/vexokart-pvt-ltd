@@ -300,7 +300,7 @@ export default function VendorDashboard() {
           <div className="p-12 text-center text-slate-500 flex flex-col items-center">
             <Truck className="h-12 w-12 mb-4 text-slate-300" />
             <h3 className="text-lg font-medium text-slate-900 mb-1">No orders yet</h3>
-            <p>When customers in your assigned pincodes place orders, they will appear here.</p>
+            <p>When customers in your assigned area place orders, they will appear here.</p>
           </div>
         ) : (
           <table className="w-full text-left border-collapse">

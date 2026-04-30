@@ -504,7 +504,7 @@ export default function Checkout() {
                 <p className="text-[10px] font-black uppercase text-red-900 tracking-tight">
                   {areaServiceable === false 
                     ? "Service not available at this area. Choose another spot." 
-                    : `Local vendor not assigned to your area (${selectedAddress.pincode}) yet.`}
+                    : "No vendor available in your area."}
                 </p>
              </div>
            )}
