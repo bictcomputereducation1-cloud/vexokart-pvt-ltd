@@ -81,6 +81,10 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  });
+
   app.post("/api/payment/order", async (req, res) => {
     try {
       const { amount, currency = "INR", receipt } = req.body;
@@ -338,6 +342,8 @@ async function startServer() {
         .insert({
           user_id: userId,
           store_name: storeName,
+          name: storeName, // Added for compatibility
+          email: email, // Added for frontend table display
           phone: phone,
           service_area_id: targetAreaId,
           latitude: latitude,

@@ -56,11 +56,19 @@ export default function AdminVendors() {
 
   const fetchData = async () => {
     try {
-      const [vendorsRes, areasRes] = await Promise.all([
-        fetch('/api/admin/vendors').then(res => res.json()),
+      const [vendorsResText, areasRes] = await Promise.all([
+        fetch('/api/admin/vendors').then(res => res.text()),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
+      let vendorsRes;
+      try {
+        vendorsRes = JSON.parse(vendorsResText);
+      } catch (e) {
+        console.error("Invalid JSON from vendors API:", vendorsResText);
+        vendorsRes = { error: "Invalid JSON response" };
+      }
+
       if (Array.isArray(vendorsRes)) {
         setVendors(vendorsRes);
       } else {

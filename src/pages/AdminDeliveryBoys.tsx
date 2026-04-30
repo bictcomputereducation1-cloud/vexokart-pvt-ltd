@@ -26,11 +26,19 @@ export default function AdminDeliveryBoys() {
 
   const fetchData = async () => {
     try {
-      const [boysRes, areasRes] = await Promise.all([
-        fetch('/api/admin/delivery-boys').then(res => res.json()),
+      const [boysResText, areasRes] = await Promise.all([
+        fetch('/api/admin/delivery-boys').then(res => res.text()),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
+      let boysRes;
+      try {
+        boysRes = JSON.parse(boysResText);
+      } catch (e) {
+        console.error("Invalid JSON from delivery boys API:", boysResText);
+        boysRes = { error: "Invalid JSON response" };
+      }
+
       if (Array.isArray(boysRes)) {
         setBoys(boysRes);
       } else {
