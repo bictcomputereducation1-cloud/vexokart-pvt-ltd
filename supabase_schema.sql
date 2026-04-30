@@ -14,7 +14,6 @@ CREATE TABLE service_areas (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   pincode TEXT UNIQUE NOT NULL,
-  city TEXT NOT NULL,
   latitude DECIMAL(10, 8),
   longitude DECIMAL(11, 8),
   radius_km DECIMAL(5, 2) DEFAULT 10.0,

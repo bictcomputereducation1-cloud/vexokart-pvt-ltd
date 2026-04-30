@@ -86,7 +86,6 @@ export interface ServiceableArea {
   id: string;
   name: string;
   pincode: string;
-  city: string;
   latitude: number | null;
   longitude: number | null;
   radius_km: number | null;

@@ -62,11 +62,10 @@ export default function AdminVendors() {
           service_areas (
             id,
             name,
-            pincode,
-            city
+            pincode
           )
         `).order('created_at', { ascending: false }),
-        supabase.from('service_areas').select('*').eq('is_active', true).order('city')
+        supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
       if (vendorsRes.error) {
@@ -266,7 +265,7 @@ export default function AdminVendors() {
                     {vendor.service_areas ? (
                       <div>
                         <div className="flex items-center gap-1 font-black text-sm text-slate-700">
-                           {vendor.service_areas.name || vendor.service_areas.city}
+                           {vendor.service_areas.name}
                         </div>
                         <p className="text-[10px] font-black text-slate-400">{vendor.service_areas.pincode}</p>
                       </div>
@@ -353,7 +352,7 @@ export default function AdminVendors() {
                   >
                     <option value="">{areas.length > 0 ? 'Select Region' : 'No areas found - create one first'}</option>
                     {areas.map(area => (
-                      <option key={area.id} value={area.id}>{area.city} ({area.pincode})</option>
+                      <option key={area.id} value={area.id}>{area.name} ({area.pincode})</option>
                     ))}
                   </select>
                 </div>
