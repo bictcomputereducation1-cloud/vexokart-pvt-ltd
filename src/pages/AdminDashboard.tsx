@@ -39,6 +39,10 @@ export default function AdminDashboard() {
         supabase.from('products').select('*').order('created_at', { ascending: false }).limit(5)
       ]);
 
+      if (ordersRes.error) console.error('Orders error:', ordersRes.error);
+      if (productsRes.error) console.error('Products error:', productsRes.error);
+      if (usersRes.error) console.error('Users error:', usersRes.error);
+
       const totalRevenue = ordersRes.data?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
       
       setStats({

@@ -61,9 +61,18 @@ export default function AdminVendors() {
         supabase.from('serviceable_areas').select('*').eq('is_active', true).order('city')
       ]);
       
+      if (vendorsRes.error) {
+        console.error('Vendors fetch error:', vendorsRes.error);
+        toast.error('Failed to load vendors: ' + vendorsRes.error.message);
+      }
+      if (areasRes.error) {
+        console.error('Areas fetch error:', areasRes.error);
+      }
+
       setVendors(vendorsRes.data || []);
       setAreas(areasRes.data || []);
-    } catch (err) {
+    } catch (err: any) {
+      console.error('FetchData catch error:', err);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
@@ -208,7 +217,20 @@ export default function AdminVendors() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {vendors.map((vendor) => (
+              {vendors.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-20 text-center">
+                    <Store className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No partners found in the system</p>
+                    <button 
+                      onClick={() => setIsAddModalOpen(true)}
+                      className="text-primary text-[10px] font-black uppercase mt-4 hover:underline"
+                    >
+                      Register your first vendor
+                    </button>
+                  </td>
+                </tr>
+              ) : vendors.map((vendor) => (
                 <tr key={vendor.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="p-6">
                     <div className="flex items-center gap-4">

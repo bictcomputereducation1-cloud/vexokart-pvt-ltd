@@ -31,9 +31,18 @@ export default function AdminDeliveryBoys() {
         supabase.from('serviceable_areas').select('*').eq('is_active', true).order('city')
       ]);
       
+      if (boysRes.error) {
+        console.error('Delivery boys fetch error:', boysRes.error);
+        toast.error('Failed to load partners: ' + boysRes.error.message);
+      }
+      if (areasRes.error) {
+        console.error('Areas fetch error:', areasRes.error);
+      }
+
       setBoys(boysRes.data || []);
       setAreas(areasRes.data || []);
-    } catch (err) {
+    } catch (err: any) {
+      console.error('FetchData catch error:', err);
       toast.error('Failed to load data');
     } finally {
       setLoading(false);
@@ -115,7 +124,20 @@ export default function AdminDeliveryBoys() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {boys.map((boy) => (
+              {boys.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="p-20 text-center">
+                    <Truck className="h-12 w-12 text-slate-200 mx-auto mb-4" />
+                    <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">No delivery partners registered</p>
+                    <button 
+                      onClick={() => setIsAddModalOpen(true)}
+                      className="text-primary text-[10px] font-black uppercase mt-4 hover:underline"
+                    >
+                      Onboard your first partner
+                    </button>
+                  </td>
+                </tr>
+              ) : boys.map((boy) => (
                 <tr key={boy.id} className="hover:bg-slate-50/50 transition-colors group">
                   <td className="p-6">
                     <div className="flex items-center gap-4">
