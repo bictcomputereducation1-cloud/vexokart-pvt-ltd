@@ -79,6 +79,11 @@ export default function Checkout() {
 
   const checkServiceability = async (address: Address) => {
     setVendorLoading(true);
+    // Clear previous state to prevent race conditions
+    setIsPincodeServiceable(null);
+    setNearestVendorId(null);
+    setTargetAreaId(null);
+    
     try {
       // 1. Find the service area
       let areaId: string | null = null;
@@ -153,6 +158,8 @@ export default function Checkout() {
         return;
       }
 
+      let finalVendorId = vendors[0].user_id;
+
       // 3. Find the nearest vendor using the Haversine formula
       if (address.latitude && address.longitude) {
         let minDistance = Infinity;
@@ -173,13 +180,12 @@ export default function Checkout() {
           }
         });
         
-        setNearestVendorId(selectedVendorId);
-      } else {
-        // Fallback to first vendor if no coordinates
-        setNearestVendorId(vendors[0].user_id);
+        finalVendorId = selectedVendorId;
       }
 
+      setNearestVendorId(finalVendorId);
       setIsPincodeServiceable(true);
+      console.log(`Serviceability Check Success: Area=${areaId}, Vendors=${vendors.length}, Assigned=${finalVendorId}`);
     } catch (error) {
       console.error('Error checking serviceability:', error);
       setIsPincodeServiceable(null);
@@ -227,7 +233,7 @@ export default function Checkout() {
     try {
       // 1. Check for area and vendor availability
       if (!targetAreaId || !nearestVendorId) {
-        throw new Error("No vendor available in your service area");
+        throw new Error("Local vendor not assigned to your area yet. Please contact support.");
       }
 
       const res = await loadRazorpay();
@@ -341,7 +347,7 @@ export default function Checkout() {
     try {
       // 1. Find assigned vendor for this area
       if (!targetAreaId || !nearestVendorId) {
-        throw new Error("No vendor available in your service area");
+        throw new Error("Local vendor not assigned to your area yet. Please contact support.");
       }
 
       const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
@@ -516,7 +522,7 @@ export default function Checkout() {
                 <p className="text-[10px] font-black uppercase text-red-900 tracking-tight">
                   {areaServiceable === false 
                     ? "Service not available at this area. Choose another spot." 
-                    : `No vendor available in your area (${selectedAddress.pincode})`}
+                    : `Local vendor not assigned to your area (${selectedAddress.pincode}) yet.`}
                 </p>
              </div>
            )}
@@ -690,7 +696,7 @@ export default function Checkout() {
           </div>
 
           <button 
-            disabled={loading || !selectedAddress || isPincodeServiceable === false || areaServiceable === false || vendorLoading}
+            disabled={loading || !selectedAddress || isPincodeServiceable !== true || areaServiceable === false || vendorLoading}
             onClick={handlePayment}
             className="flex-grow bg-emerald-600 text-white h-16 rounded-[2rem] shadow-2xl shadow-emerald-100 flex flex-col items-center justify-center active:scale-95 transition-all disabled:opacity-50 disabled:grayscale disabled:scale-100"
           >

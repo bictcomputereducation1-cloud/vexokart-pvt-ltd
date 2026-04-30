@@ -223,7 +223,7 @@ export default function AdminDeliveryBoys() {
                   onChange={e => setFormData({...formData, service_area_id: e.target.value})}
                   className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
                 >
-                  <option value="">Select Target Area</option>
+                  <option value="">{areas.length > 0 ? 'Select Target Area' : 'No areas found - create one first'}</option>
                   {areas.map(area => (
                     <option key={area.id} value={area.id}>{area.city} ({area.pincode})</option>
                   ))}
