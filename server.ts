@@ -172,8 +172,17 @@ async function startServer() {
  
       // Auto-resolve assignment if missing or as primary source of truth
       const assignment = await resolveOrderAssignment(pincode, latitude, longitude);
+      
+      if (!assignment.service_area_id) {
+        console.error(`[ERROR] Pincode ${pincode} is not linked to any serviceable area. Blocking order.`);
+        return res.status(400).json({ 
+          success: false, 
+          message: "Sorry, we do not provide service in this area (invalid pincode)." 
+        });
+      }
+
       const finalVendorId = vendor_id || assignment.vendor_id;
-      const finalAreaId = service_area_id || assignment.service_area_id;
+      const finalAreaId = assignment.service_area_id;
 
       // 2. Create order in Supabase
       const orderEntry: any = {
@@ -443,7 +452,11 @@ async function startServer() {
       const assignment = await resolveOrderAssignment(pincode, latitude, longitude);
       
       if (!assignment.service_area_id) {
-        return res.status(400).json({ error: "Pincode not serviceable" });
+        console.error(`[ERROR] COD Pincode ${pincode} not serviceable.`);
+        return res.status(400).json({ 
+          error: "Pincode not serviceable", 
+          message: "Sorry, we do not provide service in this area (invalid pincode)." 
+        });
       }
 
       const orderEntry = {

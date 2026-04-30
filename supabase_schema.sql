@@ -102,7 +102,7 @@ CREATE TABLE orders (
   coupon_code TEXT,
   delivery_fee DECIMAL(10, 2) DEFAULT 0,
   vendor_id UUID REFERENCES users(id) ON DELETE SET NULL,
-  service_area_id UUID REFERENCES serviceable_areas(id) ON DELETE SET NULL,
+  service_area_id UUID NOT NULL REFERENCES serviceable_areas(id) ON DELETE RESTRICT,
   status TEXT DEFAULT 'placed' CHECK (status IN ('placed', 'accepted', 'packed', 'ready_for_delivery', 'picked', 'out_for_delivery', 'delivered', 'cancelled', 'rejected')),
   payment_method TEXT CHECK (payment_method IN ('cod', 'online')),
   payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed')),
