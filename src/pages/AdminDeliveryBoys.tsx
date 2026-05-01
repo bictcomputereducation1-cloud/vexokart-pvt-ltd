@@ -43,7 +43,7 @@ export default function AdminDeliveryBoys() {
         setBoys(boysRes);
       } else {
         console.error('Delivery boys fetch error:', boysRes);
-        toast.error('Failed to load partners');
+        toast.error('Failed to load partners: ' + (boysRes.error || 'Unknown error'));
       }
 
       if (areasRes.error) {

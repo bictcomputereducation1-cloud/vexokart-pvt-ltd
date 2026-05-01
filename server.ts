@@ -470,23 +470,40 @@ async function startServer() {
 
   app.get("/api/admin/delivery-boys", async (req, res) => {
     try {
+      console.log("Fetching delivery boys with service areas...");
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Supabase environment variables are missing on the server");
+      }
+
       const { data, error } = await supabase
         .from('delivery_boys')
         .select(`
           *,
-          service_areas (
-            id,
-            name,
-            pincode
-          )
-        `)
-        .order('created_at', { ascending: false });
+          service_areas (*)
+        `);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase query error:", error);
+        // Try fallback without join if it's a relationship error
+        if (error.message?.includes("relationship") || error.code === "PGRST204") {
+          console.log("Relationship not found, falling back to simple select...");
+          const { data: simpleData, error: simpleError } = await supabase
+            .from('delivery_boys')
+            .select('*');
+          
+          if (simpleError) throw simpleError;
+          return res.json(simpleData);
+        }
+        throw error;
+      }
+      
       res.json(data);
     } catch (error: any) {
-      console.error("Fetch delivery boys error:", error);
-      res.status(500).json({ error: "Failed to fetch delivery partners" });
+      console.error("Critical fetch error:", error);
+      res.status(500).json({ 
+        error: error.message || "Failed to fetch delivery partners",
+        details: error 
+      });
     }
   });
 
