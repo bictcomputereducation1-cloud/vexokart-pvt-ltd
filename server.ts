@@ -264,19 +264,54 @@ async function startServer() {
   // GET vendors
   app.get("/api/admin/vendors", async (req, res) => {
     try {
+      if (!supabaseUrl || !supabaseKey) {
+        throw new Error("Supabase environment variables are missing on the server");
+      }
+
+      console.log("Fetching vendors with service areas and users...");
       const { data, error } = await supabase
         .from("vendors")
-        .select("*, service_areas(*)")
+        .select(`
+          *,
+          service_areas (*),
+          users (name, email)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("Supabase vendors query error:", JSON.stringify(error, null, 2));
+        
+        // Fallback for relationship issues
+        const isRelationshipError = error.message?.toLowerCase().includes("relationship") || 
+                                   error.code?.startsWith("PGRST");
+                                   
+        if (isRelationshipError) {
+          console.log("Relationship issue with vendors, falling back...");
+          const { data: simpleData, error: simpleError } = await supabase
+            .from("vendors")
+            .select("*")
+            .order('created_at', { ascending: false });
+            
+          if (simpleError) throw simpleError;
+          return res.json(simpleData);
+        }
+        return res.status(500).json({ error: error.message, details: error });
       }
 
-      res.json(data);
+      // Flatten user data if needed by the frontend
+      const flattenedData = data?.map(v => ({
+        ...v,
+        name: v.users?.name || v.store_name,
+        email: v.users?.email || ""
+      }));
+
+      res.json(flattenedData);
     } catch (error: any) {
       console.error("Fetch vendors error:", error);
-      res.status(500).json({ error: "Failed to fetch vendors" });
+      res.status(500).json({ 
+        error: error.message || "Failed to fetch vendors",
+        details: error 
+      });
     }
   });
 
@@ -312,22 +347,27 @@ async function startServer() {
         });
       }
 
+      // Check for user_id to satisfy foreign key if it was existing
+      if (!userId) {
+         const { data: existingUser } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
+         userId = existingUser?.id;
+      }
+
       const { data, error } = await supabase.from("vendors").insert([
         { 
-          name, 
-          email, 
           phone, 
           service_area_id, 
           latitude, 
           longitude,
           user_id: userId,
-          store_name: name, // Fallback for components expecting store_name
+          store_name: name,
           is_active: true
         },
       ]).select();
 
       if (error) {
-        return res.status(500).json({ error: error.message });
+        console.error("Vendor insert error:", JSON.stringify(error, null, 2));
+        return res.status(500).json({ error: error.message, details: error });
       }
 
       return res.json({ success: true, data });
@@ -477,21 +517,25 @@ async function startServer() {
 
       const { data, error } = await supabase
         .from('delivery_boys')
-        .select(`
-          *,
-          service_areas (*)
-        `);
+        .select('*, service_areas(*)');
 
       if (error) {
-        console.error("Supabase query error:", error);
-        // Try fallback without join if it's a relationship error
-        if (error.message?.includes("relationship") || error.code === "PGRST204") {
-          console.log("Relationship not found, falling back to simple select...");
+        console.error("Supabase query error:", JSON.stringify(error, null, 2));
+        // Try fallback without join if it's a relationship error or similar
+        const isRelationshipError = error.message?.toLowerCase().includes("relationship") || 
+                                   error.message?.toLowerCase().includes("column") ||
+                                   (error.code && typeof error.code === "string" && error.code.startsWith("PGRST"));
+                                   
+        if (isRelationshipError) {
+          console.log("Possible relationship issue, falling back to simple select...");
           const { data: simpleData, error: simpleError } = await supabase
             .from('delivery_boys')
             .select('*');
           
-          if (simpleError) throw simpleError;
+          if (simpleError) {
+            console.error("Simple select also failed:", JSON.stringify(simpleError, null, 2));
+            throw simpleError;
+          }
           return res.json(simpleData);
         }
         throw error;
