@@ -273,41 +273,49 @@ async function startServer() {
         .from("vendors")
         .select(`
           *,
-          service_areas (*),
-          users (name, email)
+          service_areas:service_area_id (*),
+          users:user_id (name, email)
         `)
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error("Supabase vendors query error:", JSON.stringify(error, null, 2));
+        console.error("Supabase vendors query error message:", error.message);
+        console.error("Supabase vendors query error full:", JSON.stringify(error, null, 2));
         
         // Fallback for relationship issues
         const isRelationshipError = error.message?.toLowerCase().includes("relationship") || 
+                                   error.message?.toLowerCase().includes("reference") ||
                                    error.code?.startsWith("PGRST");
                                    
         if (isRelationshipError) {
-          console.log("Relationship issue with vendors, falling back...");
+          console.log("Relationship issue with vendors, falling back to simple select...");
           const { data: simpleData, error: simpleError } = await supabase
             .from("vendors")
             .select("*")
             .order('created_at', { ascending: false });
             
-          if (simpleError) throw simpleError;
-          return res.json(simpleData);
+          if (simpleError) {
+            console.error("Simple vendors select also failed:", simpleError.message);
+            throw simpleError;
+          }
+          return res.json(simpleData || []);
         }
         return res.status(500).json({ error: error.message, details: error });
       }
 
-      // Flatten user data if needed by the frontend
+      // Flatten data for the frontend
       const flattenedData = data?.map(v => ({
         ...v,
         name: v.users?.name || v.store_name,
-        email: v.users?.email || ""
+        email: v.users?.email || "",
+        // Preserve the joined objects for components that use them
+        service_areas: v.service_areas,
+        users: v.users
       }));
 
-      res.json(flattenedData);
+      res.json(flattenedData || []);
     } catch (error: any) {
-      console.error("Fetch vendors error:", error);
+      console.error("Critical vendors fetch error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to fetch vendors",
         details: error 
@@ -510,40 +518,56 @@ async function startServer() {
 
   app.get("/api/admin/delivery-boys", async (req, res) => {
     try {
-      console.log("Fetching delivery boys with service areas...");
+      console.log("Fetching delivery boys with service areas and users...");
       if (!supabaseUrl || !supabaseKey) {
         throw new Error("Supabase environment variables are missing on the server");
       }
 
       const { data, error } = await supabase
         .from('delivery_boys')
-        .select('*, service_areas(*)');
+        .select(`
+          *,
+          service_areas:service_area_id (*),
+          users:user_id (name, email)
+        `);
 
       if (error) {
-        console.error("Supabase query error:", JSON.stringify(error, null, 2));
+        console.error("Supabase delivery boys query error message:", error.message);
+        console.error("Supabase delivery boys query error full:", JSON.stringify(error, null, 2));
+        
         // Try fallback without join if it's a relationship error or similar
         const isRelationshipError = error.message?.toLowerCase().includes("relationship") || 
                                    error.message?.toLowerCase().includes("column") ||
+                                   error.message?.toLowerCase().includes("reference") ||
                                    (error.code && typeof error.code === "string" && error.code.startsWith("PGRST"));
                                    
         if (isRelationshipError) {
-          console.log("Possible relationship issue, falling back to simple select...");
+          console.log("Possible relationship issue with delivery boys, falling back to simple select...");
           const { data: simpleData, error: simpleError } = await supabase
             .from('delivery_boys')
             .select('*');
           
           if (simpleError) {
-            console.error("Simple select also failed:", JSON.stringify(simpleError, null, 2));
+            console.error("Simple delivery boys select also failed:", simpleError.message);
             throw simpleError;
           }
-          return res.json(simpleData);
+          return res.json(simpleData || []);
         }
         throw error;
       }
       
-      res.json(data);
+      const flattenedData = data?.map(db => ({
+        ...db,
+        name: db.users?.name || db.full_name,
+        email: (db.users?.email || db.email) || "",
+        // Preserve joined objects
+        service_areas: db.service_areas,
+        users: db.users
+      }));
+
+      res.json(flattenedData || []);
     } catch (error: any) {
-      console.error("Critical fetch error:", error);
+      console.error("Critical delivery boys fetch error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to fetch delivery partners",
         details: error 
