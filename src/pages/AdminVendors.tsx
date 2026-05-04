@@ -70,7 +70,8 @@ export default function AdminVendors() {
       }
 
       if (Array.isArray(vendorsRes)) {
-        setVendors(vendorsRes);
+        const uniqueVendors = Array.from(new Map(vendorsRes.map((v: any) => [v.id, v])).values());
+        setVendors(uniqueVendors);
       } else {
         console.error('Vendors fetch error:', vendorsRes);
         toast.error('Failed to load vendors');

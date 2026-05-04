@@ -80,7 +80,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         quantity: item.quantity
       }));
 
-      setItems(cartItems);
+      const uniqueCartItems = Array.from(new Map(cartItems.map(item => [item.id, item])).values());
+      setItems(uniqueCartItems);
     } catch (error) {
       console.error('Error fetching cart:', error);
     } finally {

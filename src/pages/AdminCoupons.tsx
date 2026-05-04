@@ -44,7 +44,7 @@ export default function AdminCoupons() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setCoupons(data || []);
+      setCoupons(Array.from(new Map((data || []).map(c => [c.id, c])).values()));
     } catch (error) {
       console.error('Error fetching coupons:', error);
       toast.error('Failed to load coupons');

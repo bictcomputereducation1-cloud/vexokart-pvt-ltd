@@ -33,7 +33,7 @@ export default function AdminAreas() {
         .select('*')
         .order('name');
       if (error) throw error;
-      setAreas(data || []);
+      setAreas(Array.from(new Map((data || []).map(a => [a.id, a])).values()));
     } catch (err) {
       toast.error('Failed to fetch areas');
     } finally {

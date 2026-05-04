@@ -25,8 +25,8 @@ export default function AdminSubcategories() {
         supabase.from('categories').select('*').order('name'),
         supabase.from('subcategories').select('*, category:categories(name)').order('name')
       ]);
-      setCategories(cats || []);
-      setSubcategories(subs || []);
+      setCategories(Array.from(new Map((cats || []).map(c => [c.id, c])).values()));
+      setSubcategories(Array.from(new Map((subs || []).map(s => [s.id, s])).values()));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {

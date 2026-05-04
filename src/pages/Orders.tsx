@@ -50,7 +50,8 @@ export default function Orders() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders(data || []);
+      const uniqueOrders = Array.from(new Map((data || []).map(o => [o.id, o])).values());
+      setOrders(uniqueOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {

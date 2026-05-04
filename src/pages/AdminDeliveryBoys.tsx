@@ -40,7 +40,8 @@ export default function AdminDeliveryBoys() {
       }
 
       if (Array.isArray(boysRes)) {
-        setBoys(boysRes);
+        const uniqueBoys = Array.from(new Map(boysRes.map((b: any) => [b.id, b])).values());
+        setBoys(uniqueBoys);
       } else {
         console.error('Delivery boys fetch error:', boysRes);
         toast.error('Failed to load partners: ' + (boysRes.error || 'Unknown error'));

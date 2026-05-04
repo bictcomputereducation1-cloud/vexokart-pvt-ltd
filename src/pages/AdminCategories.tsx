@@ -22,7 +22,7 @@ export default function AdminCategories() {
     try {
       const { data, error } = await supabase.from('categories').select('*').order('name');
       if (error) throw error;
-      setCategories(data || []);
+      setCategories(Array.from(new Map((data || []).map(c => [c.id, c])).values()));
     } catch (error) {
       console.error('Error fetching categories:', error);
     } finally {

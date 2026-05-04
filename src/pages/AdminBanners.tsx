@@ -25,7 +25,7 @@ export default function AdminBanners() {
     try {
       const { data, error } = await supabase.from('banners').select('*').order('display_order');
       if (error) throw error;
-      setBanners(data || []);
+      setBanners(Array.from(new Map((data || []).map(b => [b.id, b])).values()));
     } catch (err) {
       toast.error('Fetch failed');
     } finally {

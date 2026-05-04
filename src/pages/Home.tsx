@@ -80,23 +80,24 @@ export default function Home() {
           .in('category_id', cats.map(c => c.id));
 
         if (prods) {
+          const uniqueProds = Array.from(new Map(prods.map(p => [p.id, p])).values());
           const catsWithData = cats.map(cat => {
-            const catProds = prods.filter(p => p.category_id === cat.id);
+            const catProds = uniqueProds.filter(p => p.category_id === cat.id);
             return {
               ...cat,
               previewProducts: catProds.slice(0, 4),
               totalCount: catProds.length
             };
           });
-          setCategories(catsWithData as any);
+          setCategories(Array.from(new Map(catsWithData.map(c => [c.id, c])).values()) as any);
         } else {
-          setCategories(cats);
+          setCategories(Array.from(new Map(cats.map(c => [c.id, c])).values()));
         }
       }
 
       // 3. Best sellers
-      const { data: prods } = await supabase.from('products').select('*').limit(6);
-      if (prods) setBestSellers(prods);
+      const { data: bestProds } = await supabase.from('products').select('*').limit(6);
+      if (bestProds) setBestSellers(Array.from(new Map(bestProds.map(p => [p.id, p])).values()));
     } catch (err) {
       console.error(err);
     } finally {

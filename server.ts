@@ -273,8 +273,8 @@ async function startServer() {
         .from("vendors")
         .select(`
           *,
-          service_areas:service_area_id (*),
-          users:user_id (name, email)
+          service_area:service_areas(*),
+          user:users(*)
         `)
         .order('created_at', { ascending: false });
 
@@ -282,35 +282,60 @@ async function startServer() {
         console.error("Supabase vendors query error message:", error.message);
         console.error("Supabase vendors query error full:", JSON.stringify(error, null, 2));
         
-        // Fallback for relationship issues
-        const isRelationshipError = error.message?.toLowerCase().includes("relationship") || 
-                                   error.message?.toLowerCase().includes("reference") ||
-                                   error.code?.startsWith("PGRST");
+        // Final fallback: Manual fetch if joins are failing
+        const isJoinError = error.message?.toLowerCase().includes("relationship") || 
+                           error.message?.toLowerCase().includes("reference") ||
+                           error.code?.startsWith("PGRST");
                                    
-        if (isRelationshipError) {
-          console.log("Relationship issue with vendors, falling back to simple select...");
-          const { data: simpleData, error: simpleError } = await supabase
+        if (isJoinError) {
+          console.log("Join issue with vendors, performing manual data merge...");
+          const { data: vendors, error: vError } = await supabase
             .from("vendors")
             .select("*")
             .order('created_at', { ascending: false });
             
-          if (simpleError) {
-            console.error("Simple vendors select also failed:", simpleError.message);
-            throw simpleError;
-          }
-          return res.json(simpleData || []);
+          if (vError) throw vError;
+
+          // Fetch users and areas separately to merge
+          const userIds = vendors?.map(v => v.user_id).filter(Boolean) || [];
+          const areaIds = vendors?.map(v => v.service_area_id).filter(Boolean) || [];
+
+          const [{ data: users }, { data: areas }] = await Promise.all([
+            supabase.from('users').select('id, name, email').in('id', userIds),
+            supabase.from('service_areas').select('*').in('id', areaIds)
+          ]);
+
+          const mergedData = vendors?.map(v => ({
+            ...v,
+            user: users?.find(u => u.id === v.user_id),
+            service_area: areas?.find(a => a.id === v.service_area_id)
+          }));
+
+          const flattened = mergedData?.map((v: any) => ({
+            ...v,
+            name: v.user?.name || v.store_name,
+            email: v.user?.email || "",
+            service_areas: v.service_area,
+            service_area: v.service_area,
+            users: v.user,
+            user: v.user
+          }));
+
+          return res.json(flattened || []);
         }
         return res.status(500).json({ error: error.message, details: error });
       }
 
       // Flatten data for the frontend
-      const flattenedData = data?.map(v => ({
+      const flattenedData = data?.map((v: any) => ({
         ...v,
-        name: v.users?.name || v.store_name,
-        email: v.users?.email || "",
-        // Preserve the joined objects for components that use them
-        service_areas: v.service_areas,
-        users: v.users
+        name: v.user?.name || v.store_name,
+        email: v.user?.email || "",
+        // Support multiple structure styles for compatibility
+        service_areas: v.service_area,
+        service_area: v.service_area,
+        users: v.user,
+        user: v.user
       }));
 
       res.json(flattenedData || []);
@@ -335,24 +360,51 @@ async function startServer() {
       }
       let userId = null;
       if (password) {
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        // Try to handle existing user
+        const { data: existingUser } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle();
 
-        if (authError || !authData.user) {
-          console.error("Auth creation error:", authError);
-          return res.status(400).json({ error: authError?.message || "Failed to create user" });
+        if (existingUser) {
+          userId = existingUser.id;
+        } else {
+          // Create user with admin API to avoid email verification step in dev/admin contexts
+          const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+            email,
+            password,
+            email_confirm: true
+          });
+
+          if (authError) {
+            // If user already exists in Auth but not in users table (unlikely but possible)
+            if (authError.message.includes("already registered") || authError.status === 422) {
+              // Try to find the user in Auth or users
+              const { data: usersData } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
+              if (usersData) {
+                 userId = usersData.id;
+              } else {
+                 return res.status(400).json({ error: "User already exists in authentication but not in profile database. Manual sync required." });
+              }
+            } else {
+              console.error("Auth creation error:", authError);
+              return res.status(400).json({ error: authError.message || "Failed to create user" });
+            }
+          } else if (authData.user) {
+            userId = authData.user.id;
+          }
         }
-        userId = authData.user.id;
 
-        // Sync to users table
-        await supabase.from("users").upsert({
-          id: userId,
-          email: email,
-          name: name,
-          role: "vendor",
-        });
+        if (userId) {
+          // Sync to users table
+          await supabase.from("users").upsert({
+            id: userId,
+            email: email,
+            name: name,
+            role: "vendor",
+          });
+        }
       }
 
       // Check for user_id to satisfy foreign key if it was existing
@@ -457,16 +509,28 @@ async function startServer() {
       let userId = existingUser?.id;
 
       if (!userId) {
-        const { data: authData, error: authError } = await supabase.auth.signUp({
+        const { data: authData, error: authError } = await supabase.auth.admin.createUser({
           email,
           password,
+          email_confirm: true
         });
 
-        if (authError || !authData.user) {
-          console.error("Auth creation error:", authError);
-          return res.status(400).json({ error: authError?.message || "Failed to create user" });
+        if (authError) {
+          if (authError.message.includes("already registered") || authError.status === 422) {
+             // Fallback to finding existing user
+             const { data: authUser } = await supabase.from('users').select('id').eq('email', email).maybeSingle();
+             if (authUser) {
+               userId = authUser.id;
+             } else {
+               return res.status(400).json({ error: "User exists in Auth but has no profile. Please contact support." });
+             }
+          } else {
+            console.error("Auth creation error:", authError);
+            return res.status(400).json({ error: authError.message || "Failed to create user" });
+          }
+        } else if (authData.user) {
+          userId = authData.user.id;
         }
-        userId = authData.user.id;
       } else {
         const { data: existingBoy } = await supabase
           .from("delivery_boys")
@@ -527,42 +591,67 @@ async function startServer() {
         .from('delivery_boys')
         .select(`
           *,
-          service_areas:service_area_id (*),
-          users:user_id (name, email)
+          service_area:service_areas(*),
+          user:users(*)
         `);
 
       if (error) {
         console.error("Supabase delivery boys query error message:", error.message);
         console.error("Supabase delivery boys query error full:", JSON.stringify(error, null, 2));
         
-        // Try fallback without join if it's a relationship error or similar
-        const isRelationshipError = error.message?.toLowerCase().includes("relationship") || 
-                                   error.message?.toLowerCase().includes("column") ||
-                                   error.message?.toLowerCase().includes("reference") ||
-                                   (error.code && typeof error.code === "string" && error.code.startsWith("PGRST"));
+        // Final fallback: Manual fetch if joins are failing
+        const isJoinError = error.message?.toLowerCase().includes("relationship") || 
+                           error.message?.toLowerCase().includes("column") ||
+                           error.message?.toLowerCase().includes("reference") ||
+                           (error.code && typeof error.code === "string" && error.code.startsWith("PGRST"));
                                    
-        if (isRelationshipError) {
-          console.log("Possible relationship issue with delivery boys, falling back to simple select...");
-          const { data: simpleData, error: simpleError } = await supabase
+        if (isJoinError) {
+          console.log("Join issue with delivery boys, performing manual data merge...");
+          const { data: boys, error: bError } = await supabase
             .from('delivery_boys')
-            .select('*');
+            .select('*')
+            .order('created_at', { ascending: false });
           
-          if (simpleError) {
-            console.error("Simple delivery boys select also failed:", simpleError.message);
-            throw simpleError;
-          }
-          return res.json(simpleData || []);
+          if (bError) throw bError;
+
+          const userIds = boys?.map(b => b.user_id).filter(Boolean) || [];
+          const areaIds = boys?.map(b => b.service_area_id).filter(Boolean) || [];
+
+          const [{ data: users }, { data: areas }] = await Promise.all([
+            supabase.from('users').select('id, name, email').in('id', userIds),
+            supabase.from('service_areas').select('*').in('id', areaIds)
+          ]);
+
+          const mergedData = boys?.map(b => ({
+            ...b,
+            user: users?.find(u => u.id === b.user_id),
+            service_area: areas?.find(a => a.id === b.service_area_id)
+          }));
+
+          const flattened = mergedData?.map((db: any) => ({
+            ...db,
+            name: db.user?.name || db.full_name,
+            email: (db.user?.email || db.email) || "",
+            service_areas: db.service_area,
+            service_area: db.service_area,
+            users: db.user,
+            user: db.user
+          }));
+
+          return res.json(flattened || []);
         }
         throw error;
       }
       
-      const flattenedData = data?.map(db => ({
+      const flattenedData = data?.map((db: any) => ({
         ...db,
-        name: db.users?.name || db.full_name,
-        email: (db.users?.email || db.email) || "",
-        // Preserve joined objects
-        service_areas: db.service_areas,
-        users: db.users
+        name: db.user?.name || db.full_name,
+        email: (db.user?.email || db.email) || "",
+        // Support multiple structure styles for compatibility
+        service_areas: db.service_area,
+        service_area: db.service_area,
+        users: db.user,
+        user: db.user
       }));
 
       res.json(flattenedData || []);

@@ -41,8 +41,10 @@ export default function AdminProducts() {
       if (productsRes.error) throw productsRes.error;
       if (categoriesRes.error) throw categoriesRes.error;
 
-      setProducts(productsRes.data || []);
-      setCategories(categoriesRes.data || []);
+      const uniqueProducts = Array.from(new Map((productsRes.data || []).map((p: any) => [p.id, p])).values());
+      setProducts(uniqueProducts as any);
+      const uniqueCategories = Array.from(new Map((categoriesRes.data || []).map((c: any) => [c.id, c])).values());
+      setCategories(uniqueCategories as any);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
