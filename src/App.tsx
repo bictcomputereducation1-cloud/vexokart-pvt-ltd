@@ -40,6 +40,10 @@ import { VendorLayout } from './components/VendorLayout';
 import { DeliveryLayout } from './components/DeliveryLayout';
 
 export default function App() {
+  React.useEffect(() => {
+    console.log("[DEBUG] Current Location:", window.location.href);
+  }, []);
+
   return (
     <AuthProvider>
       <LocationProvider>

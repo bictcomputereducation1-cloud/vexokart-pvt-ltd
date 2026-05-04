@@ -25,7 +25,12 @@ if (!supabaseUrl || !supabaseKey) {
   console.error("CRITICAL: Supabase environment variables are missing!");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+let supabase: any;
+try {
+  supabase = createClient(supabaseUrl, supabaseKey);
+} catch (err) {
+  console.error("FATAL: Failed to initialize Supabase client:", err);
+}
 
 // Helper to resolve service area and vendor from pincode
 async function resolveOrderAssignment(pincode: string, lat?: number, lng?: number) {
@@ -75,18 +80,23 @@ async function resolveOrderAssignment(pincode: string, lat?: number, lng?: numbe
 }
 
 async function startServer() {
+  console.log("[SERVER] Starting server initialization...");
   const app = express();
   const PORT = 3000;
 
   app.use(express.json());
 
-  // Request logging middleware
   app.use((req, res, next) => {
-    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    console.log(`[REQUEST] ${new Date().toISOString()} ${req.method} ${req.url}`);
     next();
   });
 
   // API Routes
+  app.all("/api/*", (req, res, next) => {
+    console.log(`[API-DEBUG] ${req.method} ${req.url}`);
+    next();
+  });
+
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });
   });
@@ -269,6 +279,7 @@ async function startServer() {
 
   // GET vendors
   app.get("/api/admin/vendors", async (req, res) => {
+    console.log("[SERVER] Hit /api/admin/vendors");
     try {
       if (!supabaseUrl || !supabaseKey) {
         throw new Error("Supabase environment variables are missing on the server");
@@ -772,6 +783,12 @@ async function startServer() {
     }
   });
 
+  // Catch-all for undefined API routes
+  app.use("/api/*", (req, res) => {
+    console.log(`[SERVER-404] No match for ${req.method} ${req.url}`);
+    res.status(404).json({ error: `API route not found: ${req.method} ${req.url}` });
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -787,8 +804,9 @@ async function startServer() {
     });
   }
 
+  console.log(`[SERVER] Attempting to listen on port ${PORT}...`);
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`[SERVER] Server running on http://localhost:${PORT}`);
   });
 }
 
