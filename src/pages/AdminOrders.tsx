@@ -24,21 +24,12 @@ export default function AdminOrders() {
 
   const fetchOrders = async () => {
     try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          users (name, email),
-          order_items (
-            *,
-            products (*)
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      const uniqueOrders = Array.from(new Map((data || []).map(o => [o.id, o])).values());
-      setOrders(uniqueOrders);
+      const response = await fetch('/api/admin/orders');
+      if (!response.ok) throw new Error('Failed to fetch orders');
+      const data = await response.json();
+      
+      const uniqueOrders = Array.from(new Map((data || []).map((o: any) => [o.id, o])).values());
+      setOrders(uniqueOrders as any);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {

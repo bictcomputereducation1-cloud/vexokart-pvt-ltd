@@ -268,77 +268,52 @@ async function startServer() {
         throw new Error("Supabase environment variables are missing on the server");
       }
 
-      console.log("Fetching vendors with service areas and users...");
-      const { data, error } = await supabase
+      console.log("Fetching vendors...");
+      
+      // Attempt manual merge from the start to avoid relationship issues entirely
+      const { data: vendors, error: vError } = await supabase
         .from("vendors")
-        .select(`
-          *,
-          service_area:service_areas(*),
-          user:users(*)
-        `)
+        .select("*")
         .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error("Supabase vendors query error message:", error.message);
-        console.error("Supabase vendors query error full:", JSON.stringify(error, null, 2));
         
-        // Final fallback: Manual fetch if joins are failing
-        const isJoinError = error.message?.toLowerCase().includes("relationship") || 
-                           error.message?.toLowerCase().includes("reference") ||
-                           error.code?.startsWith("PGRST");
-                                   
-        if (isJoinError) {
-          console.log("Join issue with vendors, performing manual data merge...");
-          const { data: vendors, error: vError } = await supabase
-            .from("vendors")
-            .select("*")
-            .order('created_at', { ascending: false });
-            
-          if (vError) throw vError;
-
-          // Fetch users and areas separately to merge
-          const userIds = vendors?.map(v => v.user_id).filter(Boolean) || [];
-          const areaIds = vendors?.map(v => v.service_area_id).filter(Boolean) || [];
-
-          const [{ data: users }, { data: areas }] = await Promise.all([
-            supabase.from('users').select('id, name, email').in('id', userIds),
-            supabase.from('service_areas').select('*').in('id', areaIds)
-          ]);
-
-          const mergedData = vendors?.map(v => ({
-            ...v,
-            user: users?.find(u => u.id === v.user_id),
-            service_area: areas?.find(a => a.id === v.service_area_id)
-          }));
-
-          const flattened = mergedData?.map((v: any) => ({
-            ...v,
-            name: v.user?.name || v.store_name,
-            email: v.user?.email || "",
-            service_areas: v.service_area,
-            service_area: v.service_area,
-            users: v.user,
-            user: v.user
-          }));
-
-          return res.json(flattened || []);
-        }
-        return res.status(500).json({ error: error.message, details: error });
+      if (vError) {
+        console.error("Venors base fetch error:", vError);
+        return res.status(500).json({ error: vError.message });
       }
 
-      // Flatten data for the frontend
-      const flattenedData = data?.map((v: any) => ({
-        ...v,
-        name: v.user?.name || v.store_name,
-        email: v.user?.email || "",
-        // Support multiple structure styles for compatibility
-        service_areas: v.service_area,
-        service_area: v.service_area,
-        users: v.user,
-        user: v.user
-      }));
+      const vendorsList = vendors || [];
+      if (vendorsList.length === 0) {
+        return res.json([]);
+      }
 
-      res.json(flattenedData || []);
+      // Fetch users and areas separately to merge
+      const userIds = vendorsList.map(v => v.user_id).filter(Boolean);
+      const areaIds = vendorsList.map(v => v.service_area_id).filter(Boolean);
+
+      const [usersRes, areasRes] = await Promise.all([
+        userIds.length > 0 ? supabase.from('users').select('id, name, email').in('id', userIds) : Promise.resolve({ data: [] }),
+        areaIds.length > 0 ? supabase.from('service_areas').select('*').in('id', areaIds) : Promise.resolve({ data: [] })
+      ]);
+
+      const users = usersRes.data || [];
+      const areas = areasRes.data || [];
+
+      const flattened = vendorsList.map((v: any) => {
+        const user = users.find(u => u.id === v.user_id);
+        const area = areas.find(a => a.id === v.service_area_id);
+        
+        return {
+          ...v,
+          name: user?.name || v.store_name,
+          email: user?.email || "",
+          service_area: area,
+          service_areas: area, // Compatibility
+          user: user,
+          users: user // Compatibility
+        };
+      });
+
+      res.json(flattened);
     } catch (error: any) {
       console.error("Critical vendors fetch error:", error);
       res.status(500).json({ 
@@ -582,85 +557,133 @@ async function startServer() {
 
   app.get("/api/admin/delivery-boys", async (req, res) => {
     try {
-      console.log("Fetching delivery boys with service areas and users...");
       if (!supabaseUrl || !supabaseKey) {
         throw new Error("Supabase environment variables are missing on the server");
       }
 
-      const { data, error } = await supabase
+      console.log("Fetching delivery boys...");
+      const { data: boys, error: bError } = await supabase
         .from('delivery_boys')
-        .select(`
-          *,
-          service_area:service_areas(*),
-          user:users(*)
-        `);
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      if (error) {
-        console.error("Supabase delivery boys query error message:", error.message);
-        console.error("Supabase delivery boys query error full:", JSON.stringify(error, null, 2));
-        
-        // Final fallback: Manual fetch if joins are failing
-        const isJoinError = error.message?.toLowerCase().includes("relationship") || 
-                           error.message?.toLowerCase().includes("column") ||
-                           error.message?.toLowerCase().includes("reference") ||
-                           (error.code && typeof error.code === "string" && error.code.startsWith("PGRST"));
-                                   
-        if (isJoinError) {
-          console.log("Join issue with delivery boys, performing manual data merge...");
-          const { data: boys, error: bError } = await supabase
-            .from('delivery_boys')
-            .select('*')
-            .order('created_at', { ascending: false });
-          
-          if (bError) throw bError;
-
-          const userIds = boys?.map(b => b.user_id).filter(Boolean) || [];
-          const areaIds = boys?.map(b => b.service_area_id).filter(Boolean) || [];
-
-          const [{ data: users }, { data: areas }] = await Promise.all([
-            supabase.from('users').select('id, name, email').in('id', userIds),
-            supabase.from('service_areas').select('*').in('id', areaIds)
-          ]);
-
-          const mergedData = boys?.map(b => ({
-            ...b,
-            user: users?.find(u => u.id === b.user_id),
-            service_area: areas?.find(a => a.id === b.service_area_id)
-          }));
-
-          const flattened = mergedData?.map((db: any) => ({
-            ...db,
-            name: db.user?.name || db.full_name,
-            email: (db.user?.email || db.email) || "",
-            service_areas: db.service_area,
-            service_area: db.service_area,
-            users: db.user,
-            user: db.user
-          }));
-
-          return res.json(flattened || []);
-        }
-        throw error;
+      if (bError) {
+        console.error("Delivery boys base fetch error:", bError);
+        return res.status(500).json({ error: bError.message });
       }
-      
-      const flattenedData = data?.map((db: any) => ({
-        ...db,
-        name: db.user?.name || db.full_name,
-        email: (db.user?.email || db.email) || "",
-        // Support multiple structure styles for compatibility
-        service_areas: db.service_area,
-        service_area: db.service_area,
-        users: db.user,
-        user: db.user
-      }));
 
-      res.json(flattenedData || []);
+      const boysList = boys || [];
+      if (boysList.length === 0) {
+        return res.json([]);
+      }
+
+      const userIds = boysList.map(b => b.user_id).filter(Boolean);
+      const areaIds = boysList.map(b => b.service_area_id).filter(Boolean);
+
+      const [usersRes, areasRes] = await Promise.all([
+        userIds.length > 0 ? supabase.from('users').select('id, name, email').in('id', userIds) : Promise.resolve({ data: [] }),
+        areaIds.length > 0 ? supabase.from('service_areas').select('*').in('id', areaIds) : Promise.resolve({ data: [] })
+      ]);
+
+      const users = usersRes.data || [];
+      const areas = areasRes.data || [];
+
+      const flattened = boysList.map((db: any) => {
+        const user = users.find(u => u.id === db.user_id);
+        const area = areas.find(a => a.id === db.service_area_id);
+        
+        return {
+          ...db,
+          name: user?.name || db.full_name,
+          email: (user?.email || db.email) || "",
+          service_area: area,
+          service_areas: area,
+          user: user,
+          users: user
+        };
+      });
+
+      res.json(flattened);
     } catch (error: any) {
       console.error("Critical delivery boys fetch error:", error);
       res.status(500).json({ 
         error: error.message || "Failed to fetch delivery partners",
         details: error 
       });
+    }
+  });
+
+  app.get("/api/admin/orders", async (req, res) => {
+    try {
+      console.log("Fetching orders with manual merge...");
+      const { data: orders, error: oError } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (oError) throw oError;
+
+      const orderList = orders || [];
+      if (orderList.length === 0) return res.json([]);
+
+      const userIds = orderList.map(o => o.user_id).filter(Boolean);
+      const orderIds = orderList.map(o => o.id);
+
+      const [usersRes, itemsRes] = await Promise.all([
+        supabase.from('users').select('id, name, email').in('id', userIds),
+        supabase.from('order_items').select('*').in('order_id', orderIds)
+      ]);
+
+      const users = usersRes.data || [];
+      const items = itemsRes.data || [];
+
+      // Fetch products for all items
+      const productIds = items.map(i => i.product_id).filter(Boolean);
+      const { data: products } = await supabase.from('products').select('*').in('id', productIds);
+
+      const itemsWithProducts = items.map(item => ({
+        ...item,
+        products: (products || []).find(p => p.id === item.product_id)
+      }));
+
+      const merged = orderList.map(order => ({
+        ...order,
+        users: users.find(u => u.id === order.user_id),
+        order_items: itemsWithProducts.filter(i => i.order_id === order.id)
+      }));
+
+      res.json(merged);
+    } catch (error: any) {
+      console.error("Orders fetch error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/admin/products", async (req, res) => {
+    try {
+      console.log("Fetching products with manual merge...");
+      const { data: products, error: pError } = await supabase
+        .from('products')
+        .select('*')
+        .order('name');
+
+      if (pError) throw pError;
+
+      const productList = products || [];
+      if (productList.length === 0) return res.json([]);
+
+      const catIds = productList.map(p => p.category_id).filter(Boolean);
+      const { data: categories } = await supabase.from('categories').select('*').in('id', catIds);
+
+      const merged = productList.map(p => ({
+        ...p,
+        categories: (categories || []).find(c => c.id === p.category_id)
+      }));
+
+      res.json(merged);
+    } catch (error: any) {
+      console.error("Products fetch error:", error);
+      res.status(500).json({ error: error.message });
     }
   });
 

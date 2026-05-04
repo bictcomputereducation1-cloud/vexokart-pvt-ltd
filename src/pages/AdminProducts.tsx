@@ -34,17 +34,21 @@ export default function AdminProducts() {
   const fetchData = async () => {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
-        supabase.from('products').select('*, categories(*), subcategories(*)').order('created_at', { ascending: false }),
+        fetch('/api/admin/products').then(res => res.json()),
         supabase.from('categories').select('*').order('name')
       ]);
 
-      if (productsRes.error) throw productsRes.error;
-      if (categoriesRes.error) throw categoriesRes.error;
-
-      const uniqueProducts = Array.from(new Map((productsRes.data || []).map((p: any) => [p.id, p])).values());
-      setProducts(uniqueProducts as any);
-      const uniqueCategories = Array.from(new Map((categoriesRes.data || []).map((c: any) => [c.id, c])).values());
-      setCategories(uniqueCategories as any);
+      if (Array.isArray(productsRes)) {
+        const uniqueProducts = Array.from(new Map(productsRes.map((p: any) => [p.id, p])).values());
+        setProducts(uniqueProducts as any);
+      }
+      
+      const { data: catData, error: catError } = categoriesRes;
+      if (catError) throw catError;
+      if (catData) {
+        const uniqueCategories = Array.from(new Map(catData.map((c: any) => [c.id, c])).values());
+        setCategories(uniqueCategories as any);
+      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
