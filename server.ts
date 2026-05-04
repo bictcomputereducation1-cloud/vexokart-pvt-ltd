@@ -274,18 +274,19 @@ async function startServer() {
         throw new Error("Supabase environment variables are missing on the server");
       }
 
-      console.log("Fetching vendors...");
+      console.log(`Fetching vendors... (URL: ${supabaseUrl ? 'SET' : 'MISSING'}, KEY: ${supabaseKey ? 'SET' : 'MISSING'})`);
       
-      // Attempt manual merge from the start to avoid relationship issues entirely
       const { data: vendors, error: vError } = await supabase
         .from("vendors")
         .select("*")
         .order('created_at', { ascending: false });
         
       if (vError) {
-        console.error("Venors base fetch error:", vError);
-        return res.status(500).json({ error: vError.message });
+        console.error("Vendors base fetch error:", vError);
+        return res.status(500).json({ error: vError.message, details: vError });
       }
+
+      console.log(`Found ${vendors?.length || 0} vendors in database.`);
 
       const vendorsList = vendors || [];
       if (vendorsList.length === 0) {

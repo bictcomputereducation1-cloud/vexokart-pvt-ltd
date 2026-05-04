@@ -28,11 +28,15 @@ export default function AdminDeliveryBoys() {
     try {
       const [boysRes, areasRes] = await Promise.all([
         fetch('/api/admin/delivery-boys').then(async res => {
+          console.log(`Boys API status: ${res.status}`);
           if (!res.ok) {
             const text = await res.text();
+            console.error(`Boys API Error Text: ${text}`);
             throw new Error(`API Error (${res.status}): ${text.slice(0, 100)}`);
           }
-          return res.json();
+          const json = await res.json();
+          console.log('Boys API JSON:', json);
+          return json;
         }),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);

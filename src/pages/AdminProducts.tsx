@@ -35,11 +35,15 @@ export default function AdminProducts() {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
         fetch('/api/admin/products').then(async res => {
+          console.log(`Products API status: ${res.status}`);
           if (!res.ok) {
             const text = await res.text();
+            console.error(`Products API Error Text: ${text}`);
             throw new Error(`Products API Error (${res.status}): ${text.slice(0, 100)}`);
           }
-          return res.json();
+          const json = await res.json();
+          console.log('Products API JSON:', json);
+          return json;
         }),
         supabase.from('categories').select('*').order('name')
       ]);

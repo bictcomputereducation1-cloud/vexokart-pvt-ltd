@@ -16,7 +16,7 @@ export default defineConfig(({mode}) => {
       },
     },
     optimizeDeps: {
-      exclude: ['@supabase/supabase-js', 'lucide-react', 'motion'],
+      exclude: [],
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
