@@ -80,6 +80,12 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Request logging middleware
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+
   // API Routes
   app.get("/api/health", (req, res) => {
     res.json({ status: "ok", timestamp: new Date().toISOString() });

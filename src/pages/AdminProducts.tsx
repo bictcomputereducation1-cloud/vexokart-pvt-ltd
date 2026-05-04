@@ -34,23 +34,30 @@ export default function AdminProducts() {
   const fetchData = async () => {
     try {
       const [productsRes, categoriesRes] = await Promise.all([
-        fetch('/api/admin/products').then(res => res.json()),
+        fetch('/api/admin/products').then(async res => {
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`Products API Error (${res.status}): ${text.slice(0, 100)}`);
+          }
+          return res.json();
+        }),
         supabase.from('categories').select('*').order('name')
       ]);
 
       if (Array.isArray(productsRes)) {
-        const uniqueProducts = Array.from(new Map(productsRes.map((p: any) => [p.id, p])).values());
+        const uniqueProducts = Array.from(new Map(productsRes.filter(p => p && p.id).map((p: any) => [p.id, p])).values());
         setProducts(uniqueProducts as any);
       }
       
       const { data: catData, error: catError } = categoriesRes;
       if (catError) throw catError;
       if (catData) {
-        const uniqueCategories = Array.from(new Map(catData.map((c: any) => [c.id, c])).values());
+        const uniqueCategories = Array.from(new Map(catData.filter(c => c && c.id).map((c: any) => [c.id, c])).values());
         setCategories(uniqueCategories as any);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching data:', error);
+      toast.error('Failed to load data: ' + error.message);
     } finally {
       setLoading(false);
     }

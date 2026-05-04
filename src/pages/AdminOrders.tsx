@@ -25,13 +25,19 @@ export default function AdminOrders() {
   const fetchOrders = async () => {
     try {
       const response = await fetch('/api/admin/orders');
-      if (!response.ok) throw new Error('Failed to fetch orders');
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Orders API Error (${response.status}): ${text.slice(0, 100)}`);
+      }
       const data = await response.json();
       
-      const uniqueOrders = Array.from(new Map((data || []).map((o: any) => [o.id, o])).values());
-      setOrders(uniqueOrders as any);
-    } catch (error) {
+      if (Array.isArray(data)) {
+        const uniqueOrders = Array.from(new Map(data.filter(o => o && o.id).map((o: any) => [o.id, o])).values());
+        setOrders(uniqueOrders as any);
+      }
+    } catch (error: any) {
       console.error('Error fetching orders:', error);
+      toast.error('Failed to load orders: ' + error.message);
     } finally {
       setLoading(false);
     }

@@ -56,25 +56,23 @@ export default function AdminVendors() {
 
   const fetchData = async () => {
     try {
-      const [vendorsResText, areasRes] = await Promise.all([
-        fetch('/api/admin/vendors').then(res => res.text()),
+      const [vendorsRes, areasRes] = await Promise.all([
+        fetch('/api/admin/vendors').then(async res => {
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`API Error (${res.status}): ${text.slice(0, 100)}`);
+          }
+          return res.json();
+        }),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
-      let vendorsRes;
-      try {
-        vendorsRes = JSON.parse(vendorsResText);
-      } catch (e) {
-        console.error("Invalid JSON from vendors API:", vendorsResText);
-        vendorsRes = { error: "Invalid JSON response" };
-      }
-
       if (Array.isArray(vendorsRes)) {
-        const uniqueVendors = Array.from(new Map(vendorsRes.map((v: any) => [v.id, v])).values());
+        const uniqueVendors = Array.from(new Map(vendorsRes.filter(v => v && v.id).map((v: any) => [v.id, v])).values());
         setVendors(uniqueVendors);
       } else {
         console.error('Vendors fetch error:', vendorsRes);
-        toast.error('Failed to load vendors');
+        toast.error('Failed to load vendors: Invalid response format');
       }
 
       if (areasRes.error) {
@@ -84,7 +82,7 @@ export default function AdminVendors() {
       }
     } catch (err: any) {
       console.error('FetchData catch error:', err);
-      toast.error('Failed to load data');
+      toast.error('Failed to load vendors: ' + err.message);
     } finally {
       setLoading(false);
     }

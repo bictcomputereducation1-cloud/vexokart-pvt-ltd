@@ -26,25 +26,23 @@ export default function AdminDeliveryBoys() {
 
   const fetchData = async () => {
     try {
-      const [boysResText, areasRes] = await Promise.all([
-        fetch('/api/admin/delivery-boys').then(res => res.text()),
+      const [boysRes, areasRes] = await Promise.all([
+        fetch('/api/admin/delivery-boys').then(async res => {
+          if (!res.ok) {
+            const text = await res.text();
+            throw new Error(`API Error (${res.status}): ${text.slice(0, 100)}`);
+          }
+          return res.json();
+        }),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
       ]);
       
-      let boysRes;
-      try {
-        boysRes = JSON.parse(boysResText);
-      } catch (e) {
-        console.error("Invalid JSON from delivery boys API:", boysResText);
-        boysRes = { error: "Invalid JSON response" };
-      }
-
       if (Array.isArray(boysRes)) {
-        const uniqueBoys = Array.from(new Map(boysRes.map((b: any) => [b.id, b])).values());
+        const uniqueBoys = Array.from(new Map(boysRes.filter(b => b && b.id).map((b: any) => [b.id, b])).values());
         setBoys(uniqueBoys);
       } else {
         console.error('Delivery boys fetch error:', boysRes);
-        toast.error('Failed to load partners: ' + (boysRes.error || 'Unknown error'));
+        toast.error('Failed to load partners: Invalid response format');
       }
 
       if (areasRes.error) {
@@ -54,7 +52,7 @@ export default function AdminDeliveryBoys() {
       }
     } catch (err: any) {
       console.error('FetchData catch error:', err);
-      toast.error('Failed to load data');
+      toast.error('Failed to load data: ' + err.message);
     } finally {
       setLoading(false);
     }
