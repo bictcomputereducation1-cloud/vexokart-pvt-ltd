@@ -24,25 +24,28 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const isOrderSuccessPage = routeLocation.pathname.startsWith('/order-success/');
   const isOnboardingPage = routeLocation.pathname === '/onboarding';
 
+  const isVendorRoute = routeLocation.pathname.startsWith('/vendor');
+  const isDeliveryRoute = routeLocation.pathname.startsWith('/delivery');
+
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      {!isSplash && !isCheckoutPage && !isCartPage && !isOrderSuccessPage && !isOnboardingPage && !isCategories && !isProductPage && !isCategoryListing && (
+      {!isSplash && !isCheckoutPage && !isCartPage && !isOrderSuccessPage && !isOnboardingPage && !isCategories && !isProductPage && !isCategoryListing && !isDeliveryRoute && !isVendorRoute && (
         <Navbar onMenuClick={() => setIsSidebarOpen(true)} />
       )}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <main className={cn(
         "flex-grow relative",
-        isAdminRoute || isOnboardingPage || isSplash ? "pb-0" : "pb-32",
+        isAdminRoute || isOnboardingPage || isSplash || isDeliveryRoute || isVendorRoute ? "pb-0" : "pb-32",
         isAdminRoute ? "w-full" : "w-full"
       )}>
         <div className={cn(
-          isAdminRoute || isOnboardingPage || isSplash ? "" : "max-w-screen-xl mx-auto"
+          isAdminRoute || isOnboardingPage || isSplash || isDeliveryRoute || isVendorRoute ? "" : "max-w-screen-xl mx-auto"
         )}>
           {children}
         </div>
       </main>
       <LocationModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-      {!isAdminRoute && !isOnboardingPage && !isSplash && (
+      {!isAdminRoute && !isOnboardingPage && !isSplash && !isDeliveryRoute && !isVendorRoute && (
         <>
           <footer className="hidden md:block bg-slate-50 border-t py-12 mt-auto">
             <div className="container mx-auto px-4 text-center">

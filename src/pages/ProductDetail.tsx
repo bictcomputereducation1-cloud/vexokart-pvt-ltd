@@ -254,41 +254,62 @@ export default function ProductDetail() {
            <div className="space-y-4">
              <h3 className="text-lg font-black text-slate-900">Product Details</h3>
              <p className="text-sm font-medium text-slate-500 leading-relaxed">
-               {product.description || "Aashirvaad Select Basmati Rice is the finest quality basmati rice known for its exquisite aroma, long grains and rich taste. Perfect for Biryani, Pulao and everyday meals."}
+               {product.description || "Finest quality product known for its exquisite aroma and rich taste. Perfect for everyday meals."}
              </p>
-             <ul className="space-y-2">
-               {[
-                 "Extra long grain",
-                 "Aromatic & Flavourful",
-                 "Perfect for Biryani, Pulao & Everyday Meals",
-                 "Naturally Aged for Superior Taste"
-               ].map((text, i) => (
-                 <li key={i} className="flex items-center gap-3 text-sm font-bold text-slate-800">
-                    <CheckCircle2 className="h-4 w-4 text-[#5E3192]" />
-                    {text}
-                 </li>
-               ))}
-             </ul>
+             
+             {product.highlights && product.highlights.length > 0 ? (
+               <ul className="space-y-2">
+                 {product.highlights.map((text: string, i: number) => (
+                   <li key={i} className="flex items-start gap-3 text-sm font-bold text-slate-800">
+                      <CheckCircle2 className="h-4 w-4 text-[#5E3192] shrink-0 mt-0.5" />
+                      <span>{text}</span>
+                   </li>
+                 ))}
+               </ul>
+             ) : (
+               <ul className="space-y-2">
+                 {[
+                   "Premium Quality Guarantee",
+                   "100% Genuine Product",
+                   "Perfect for Everyday Use"
+                 ].map((text, i) => (
+                   <li key={i} className="flex items-start gap-3 text-sm font-bold text-slate-800">
+                      <CheckCircle2 className="h-4 w-4 text-[#5E3192] shrink-0 mt-0.5" />
+                      <span>{text}</span>
+                   </li>
+                 ))}
+               </ul>
+             )}
            </div>
 
            {/* Table Specs */}
-           <div className="bg-[#FAF9FF] rounded-[2rem] p-6 space-y-4 border border-[#5E3192]/5">
-              <div className="space-y-4">
+           <div className="bg-[#FAF9FF] rounded-[2rem] p-6 space-y-0 border border-[#5E3192]/5 transition-all duration-300 overflow-hidden">
+              <motion.div layout className="space-y-4">
                 {[
-                  { label: "Brand", value: "Aashirvaad" },
-                  { label: "Type", value: "Basmati Rice" },
-                  { label: "Weight", value: "1 kg" },
-                  { label: "Speciality", value: "Aromatic" },
-                  { label: "Shelf Life", value: "12 Months" }
-                ].map((spec, i) => (
-                  <div key={i} className="flex justify-between items-center text-sm">
-                    <span className="font-bold text-slate-400">{spec.label}</span>
-                    <span className="font-bold text-slate-900">{spec.value}</span>
-                  </div>
+                  { label: "Brand", value: product.brand || "Local" },
+                  { label: "Type", value: product.product_type || "Grocery" },
+                  { label: "Weight", value: product.weight || selectedSize },
+                  { label: "Speciality", value: product.speciality || "Standard" },
+                  { label: "Shelf Life", value: product.shelf_life || "12 Months" },
+                  ...(product.specifications ? Object.keys(product.specifications).map(key => ({ label: key, value: (product.specifications as any)[key] })) : [])
+                ].slice(0, isDescExpanded ? undefined : 4).map((spec, i) => (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    key={`${spec.label}-${i}`}
+                    className="flex justify-between items-start text-sm gap-4"
+                  >
+                    <span className="font-bold text-slate-400 capitalize shrink-0">{spec.label}</span>
+                    <span className="font-bold text-slate-900 text-right">{spec.value}</span>
+                  </motion.div>
                 ))}
-              </div>
-              <button className="w-full flex items-center justify-center gap-2 text-[#5E3192] text-sm font-black uppercase tracking-widest pt-4 border-t border-[#5E3192]/10 mt-4">
-                View More <ChevronRight className="h-4 w-4 rotate-90" />
+              </motion.div>
+              <button 
+                onClick={() => setIsDescExpanded(!isDescExpanded)}
+                className="w-full flex items-center justify-center gap-2 text-[#5E3192] text-sm font-black uppercase tracking-widest pt-4 border-t border-[#5E3192]/10 mt-4 hover:bg-[#5E3192]/5 rounded-b-[1rem] p-2 transition-colors active:scale-95 outline-none"
+              >
+                {isDescExpanded ? 'View Less' : 'View More'} 
+                <ChevronRight className={cn("h-4 w-4 transition-transform", isDescExpanded ? "-rotate-90" : "rotate-90")} />
               </button>
            </div>
         </div>

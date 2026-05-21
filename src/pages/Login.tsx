@@ -45,31 +45,22 @@ export default function Login() {
       toast.success('Logged in successfully!');
 
       if (data.user) {
-        // First check if the user is a vendor
-        const { data: vendorData } = await supabase
-          .from('vendors')
-          .select('*')
-          .eq('user_id', data.user.id)
-          .maybeSingle();
-
-        if (vendorData) {
-          navigate('/vendor');
-          return;
-        }
-
-        // Check if admin
+        // Fetch the user role
         const { data: userData } = await supabase
           .from('users')
           .select('role')
           .eq('id', data.user.id)
           .maybeSingle();
 
-        if (userData?.role === 'admin') {
+        const role = userData?.role;
+
+        if (role === 'admin') {
           navigate('/admin');
           return;
-        }
-
-        if (userData?.role === 'delivery') {
+        } else if (role === 'vendor') {
+          navigate('/vendor');
+          return;
+        } else if (role === 'delivery') {
           navigate('/delivery/dashboard');
           return;
         }

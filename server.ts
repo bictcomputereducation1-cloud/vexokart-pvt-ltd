@@ -91,14 +91,20 @@ async function startServer() {
     next();
   });
 
-  // API Routes
+  // API Debug Logger
   app.all("/api/*", (req, res, next) => {
     console.log(`[API-DEBUG] ${req.method} ${req.url}`);
     next();
   });
 
+  // Health check route
   app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", timestamp: new Date().toISOString() });
+    res.json({ status: "ok", timestamp: new Date().toISOString(), env: process.env.NODE_ENV });
+  });
+
+  // Test route for user verification
+  app.get("/api/test-json", (req, res) => {
+    res.json({ success: true, message: "Server is responding with JSON" });
   });
 
   app.post("/api/payment/order", async (req, res) => {
@@ -450,7 +456,7 @@ async function startServer() {
       // find vendor
       const { data: vendor } = await supabase
         .from("vendors")
-        .select("id")
+        .select("user_id")
         .eq("service_area_id", area.id)
         .maybeSingle();
 
@@ -463,7 +469,7 @@ async function startServer() {
           items,
           address,
           pincode,
-          vendor_id: vendor.id,
+          vendor_id: vendor.user_id,
           service_area_id: area.id,
           user_id: userId || null,
           total_amount: items.reduce((acc: number, item: any) => acc + (item.price * item.quantity), 0),
@@ -673,6 +679,158 @@ async function startServer() {
       res.json(merged);
     } catch (error: any) {
       console.error("Orders fetch error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/orders/update", async (req, res) => {
+    try {
+      const { orderId, updateData } = req.body;
+      
+      if (!orderId || !updateData) {
+        return res.status(400).json({ error: "Missing required fields" });
+      }
+
+      console.log(`[SERVER] Updating order ${orderId} with data:`, updateData);
+      
+      const { data, error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("[SERVER] Error updating order:", error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      // If status changed to delivered, update delivery boy commission
+      if (updateData.status === 'delivered' && data.delivery_boy_id) {
+        const commission = data.delivery_fee || 50; // Use delivery fee or default 50 as commission
+        
+        // 1. Fetch current commission
+        const { data: dboy } = await supabase
+          .from('delivery_boys')
+          .select('commission_balance')
+          .eq('id', data.delivery_boy_id)
+          .single();
+          
+        if (dboy) {
+          const newBalance = (dboy.commission_balance || 0) + commission;
+          await supabase
+            .from('delivery_boys')
+            .update({ commission_balance: newBalance })
+            .eq('id', data.delivery_boy_id);
+            
+          console.log(`[SERVER] Added ₹${commission} commission. New balance: ₹${newBalance}`);
+        }
+      }
+
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error("[SERVER] Order update error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/delivery/orders", async (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+
+    try {
+      console.log(`[SERVER] Fetching orders for delivery boy user: ${userId}`);
+      
+      const { data: dboy, error: dboyError } = await supabase
+        .from('delivery_boys')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+        
+      const deliveryBoyId = dboy?.id || userId;
+
+      const { data: orders, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          users:user_id (name, email)
+        `)
+        .eq('delivery_boy_id', deliveryBoyId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Orders fetch error:", error);
+        return res.status(500).json({ error: error.message });
+      }
+
+      res.json(orders);
+    } catch (error: any) {
+      console.error("Delivery orders fetch error:", error);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.get("/api/vendor/orders", async (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ error: "userId is required" });
+
+    try {
+      console.log(`[SERVER] Fetching orders for vendor user: ${userId}`);
+
+      // First, get the vendor profile to get the actual vendor.id
+      const { data: vendorProfile } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('user_id', userId)
+        .single();
+        
+      const vendorId = vendorProfile?.id;
+
+      // Fetch orders where vendor_id is either the user_id (new) or the vendor_id (old)
+      let query = supabase.from('orders').select('*').order('created_at', { ascending: false });
+
+      if (vendorId) {
+        query = query.or(`vendor_id.eq.${userId},vendor_id.eq.${vendorId}`);
+      } else {
+        query = query.eq('vendor_id', userId);
+      }
+
+      const { data: orders, error: oError } = await query;
+
+      if (oError) throw oError;
+
+      const orderList = orders || [];
+      if (orderList.length === 0) return res.json([]);
+
+      const customerIds = orderList.map(o => o.user_id).filter(Boolean);
+      const orderIds = orderList.map(o => o.id);
+
+      const [usersRes, itemsRes] = await Promise.all([
+        supabase.from('users').select('id, name, email').in('id', customerIds),
+        supabase.from('order_items').select('*').in('order_id', orderIds)
+      ]);
+
+      const users = usersRes.data || [];
+      const items = itemsRes.data || [];
+
+      // Fetch products for all items
+      const productIds = items.map(i => i.product_id).filter(Boolean);
+      const { data: products } = await supabase.from('products').select('*').in('id', productIds);
+
+      const itemsWithProducts = items.map(item => ({
+        ...item,
+        products: (products || []).find(p => p.id === item.product_id)
+      }));
+
+      const merged = orderList.map(order => ({
+        ...order,
+        users: users.find(u => u.id === order.user_id),
+        order_items: itemsWithProducts.filter(i => i.order_id === order.id)
+      }));
+
+      res.json(merged);
+    } catch (error: any) {
+      console.error("Vendor orders fetch error:", error);
       res.status(500).json({ error: error.message });
     }
   });

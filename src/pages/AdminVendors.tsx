@@ -51,21 +51,44 @@ export default function AdminVendors() {
   const markerRef = useRef<any>(null);
 
   useEffect(() => {
+    console.log("[DEBUG] Current URL:", window.location.href);
     fetchData();
   }, []);
 
   const fetchData = async () => {
+    setLoading(true);
     try {
+      console.log("[DEBUG] Fetching vendors from: /api/admin/vendors");
       const [vendorsRes, areasRes] = await Promise.all([
-        fetch('/api/admin/vendors').then(async res => {
-          console.log(`Vendors API status: ${res.status}`);
+        fetch('/api/admin/vendors', {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          cache: 'no-store'
+        }).then(async res => {
+          console.log(`[DEBUG] Vendors API Status: ${res.status}`);
+          const contentType = res.headers.get("content-type");
+          
           if (!res.ok) {
-            const text = await res.text();
-            console.error(`Vendors API Error Text: ${text}`);
-            throw new Error(`API Error (${res.status}): ${text.slice(0, 100)}`);
+            let errorText = "";
+            try {
+              errorText = await res.text();
+            } catch (e) {
+              errorText = "Could not read error body";
+            }
+            console.error(`[DEBUG] API Error (${res.status}):`, errorText);
+            throw new Error(`API Error (${res.status}): ${errorText.slice(0, 100)}`);
           }
+
+          if (!contentType || !contentType.includes("application/json")) {
+            const body = await res.text();
+            console.error("[DEBUG] Invalid Content-Type. Expected JSON but got:", contentType, "Body snippet:", body.slice(0, 100));
+            throw new Error(`Invalid response format: Expected JSON but got ${contentType || 'unknown'}. This usually means the API route is 404 and falling back to HTML.`);
+          }
+
           const json = await res.json();
-          console.log('Vendors API JSON:', json);
+          console.log('[DEBUG] Vendors API JSON Success:', json);
           return json;
         }),
         supabase.from('service_areas').select('*').eq('is_active', true).order('name')
@@ -369,6 +392,17 @@ export default function AdminVendors() {
                       value={formData.phone}
                       onChange={e => setFormData({...formData, phone: e.target.value})}
                       className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                    <input 
+                      type="text"
+                      required
+                      value={formData.password}
+                      onChange={e => setFormData({...formData, password: e.target.value})}
+                      className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
+                      placeholder="Secure password..."
                     />
                   </div>
                 </div>

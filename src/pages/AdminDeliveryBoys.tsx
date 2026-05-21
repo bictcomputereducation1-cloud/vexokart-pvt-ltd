@@ -4,8 +4,11 @@ import { ServiceableArea } from '../types';
 import { Truck, UserPlus, MapPin, CheckCircle, XCircle, Loader2, X, Bike, Save } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { LocationPicker } from '../components/LocationPicker';
+
 export default function AdminDeliveryBoys() {
   const [boys, setBoys] = useState<any[]>([]);
+  const [showMap, setShowMap] = useState(false);
   const [areas, setAreas] = useState<ServiceableArea[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -13,6 +16,7 @@ export default function AdminDeliveryBoys() {
 
   const [formData, setFormData] = useState({
     email: '',
+    password: '',
     full_name: '',
     phone: '',
     vehicle_type: 'BIKE',
@@ -27,7 +31,13 @@ export default function AdminDeliveryBoys() {
   const fetchData = async () => {
     try {
       const [boysRes, areasRes] = await Promise.all([
-        fetch('/api/admin/delivery-boys').then(async res => {
+        fetch('/api/admin/delivery-boys', {
+          headers: {
+            'Accept': 'application/json',
+            'Cache-Control': 'no-cache'
+          },
+          cache: 'no-store'
+        }).then(async res => {
           console.log(`Boys API status: ${res.status}`);
           if (!res.ok) {
             const text = await res.text();
@@ -71,7 +81,7 @@ export default function AdminDeliveryBoys() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           email: formData.email,
-          password: 'TemporaryPassword123!', 
+          password: formData.password || 'TemporaryPassword123!', 
           name: formData.full_name,
           phone: formData.phone,
           service_area_id: formData.service_area_id,
@@ -80,13 +90,10 @@ export default function AdminDeliveryBoys() {
       });
 
       const text = await response.text();
-      console.log("Raw delivery boy creation response:", text);
-
       let result;
       try {
         result = JSON.parse(text);
       } catch (err) {
-        console.error("Invalid JSON response from server:", text);
         throw new Error("Server returned non-JSON response");
       }
 
@@ -95,11 +102,23 @@ export default function AdminDeliveryBoys() {
       toast.success('Delivery partner registered and account created');
       setIsAddModalOpen(false);
       fetchData();
-      setFormData({ email: '', full_name: '', phone: '', vehicle_type: 'BIKE', service_area_id: '', is_active: true });
+      setFormData({ email: '', password: '', full_name: '', phone: '', vehicle_type: 'BIKE', service_area_id: '', is_active: true });
     } catch (err: any) {
       toast.error(err.message || 'Registration failed');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLocationSelected = (loc: any) => {
+    // Auto match nearest service area based on pincode
+    const matchedArea = areas.find(a => a.pincode === loc.pincode);
+    if (matchedArea) {
+      setFormData(prev => ({ ...prev, service_area_id: matchedArea.id }));
+      toast.success(`Matched delivery area: ${matchedArea.name}`);
+      setShowMap(false);
+    } else {
+      toast.error(`No service area found for pincode ${loc.pincode}`);
     }
   };
 
@@ -255,25 +274,46 @@ export default function AdminDeliveryBoys() {
                     required
                     value={formData.phone}
                     onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none"
+                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
                   />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                  <input 
+                    type="text"
+                    required
+                    value={formData.password}
+                    onChange={e => setFormData({...formData, password: e.target.value})}
+                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
+                    placeholder="Secure password..."
+                  />
+                </div>
+              </div>
+
+               <div className="space-y-1">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Vehicle</label>
                   <select 
                     value={formData.vehicle_type}
                     onChange={e => setFormData({...formData, vehicle_type: e.target.value})}
-                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none"
+                    className="w-full bg-slate-50 rounded-2xl p-4 font-bold outline-none border-2 border-transparent focus:border-primary transition-all"
                   >
                     <option value="BIKE">BIKE</option>
                     <option value="SCOOTER">SCOOTER</option>
                     <option value="CYCLE">CYCLE</option>
                   </select>
                 </div>
-              </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Assigned Delivery Zone</label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Assigned Delivery Zone</label>
+                  <button 
+                    type="button" 
+                    onClick={() => setShowMap(true)}
+                    className="text-[10px] font-black uppercase tracking-widest text-emerald-600 flex items-center gap-1 hover:underline"
+                  >
+                    <MapPin className="h-3 w-3" /> Auto Detect
+                  </button>
+                </div>
                 <select 
                   required
                   value={formData.service_area_id}
@@ -295,6 +335,27 @@ export default function AdminDeliveryBoys() {
                 {saving ? <Loader2 className="animate-spin" /> : <><Save className="h-5 w-5" /> Enroll Partner</>}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showMap && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur z-[60] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-2xl h-[70vh] rounded-[2.5rem] p-4 flex flex-col shadow-2xl animate-in zoom-in-95 relative overflow-hidden">
+            <div className="flex justify-between items-center px-4 pb-4 border-b border-slate-100">
+               <h2 className="text-xl font-black uppercase tracking-tight text-slate-900">Select Location</h2>
+               <button onClick={() => setShowMap(false)} className="p-2 bg-slate-50 rounded-xl hover:bg-slate-100 transition-colors">
+                  <X className="h-5 w-5 text-slate-600" />
+               </button>
+            </div>
+            <div className="flex-1 relative mt-4 rounded-[1.5rem] overflow-hidden border-2 border-slate-100">
+               <LocationPicker 
+                  onLocationSelected={handleLocationSelected}
+               />
+            </div>
+            <div className="p-4 flex justify-between items-center bg-emerald-50 rounded-2xl mt-4">
+                <p className="text-xs font-bold text-emerald-800">Move the map to select the delivery zone.</p>
+            </div>
           </div>
         </div>
       )}

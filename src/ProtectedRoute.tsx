@@ -6,10 +6,11 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
   adminOnly?: boolean;
   vendorOnly?: boolean;
+  deliveryOnly?: boolean;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false, vendorOnly = false }) => {
-  const { user, isAdmin, isVendor, loading } = useAuth();
+export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminOnly = false, vendorOnly = false, deliveryOnly = false }) => {
+  const { user, isAdmin, isVendor, isDelivery, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -26,6 +27,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, adminO
 
   if (vendorOnly && !isVendor && !isAdmin) {
     return <AccessDeniedView roleName="vendor" />;
+  }
+
+  if (deliveryOnly && !isDelivery && !isAdmin) {
+    return <AccessDeniedView roleName="delivery" />;
   }
 
   return <>{children}</>;

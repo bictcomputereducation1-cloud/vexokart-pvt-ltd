@@ -26,8 +26,9 @@ export default function AdminBanners() {
       const { data, error } = await supabase.from('banners').select('*').order('display_order');
       if (error) throw error;
       setBanners(Array.from(new Map((data || []).map(b => [b.id, b])).values()));
-    } catch (err) {
-      toast.error('Fetch failed');
+    } catch (err: any) {
+      console.error('Fetch Banners Error:', err);
+      toast.error(err?.message || 'Fetch failed');
     } finally {
       setLoading(false);
     }
@@ -43,8 +44,9 @@ export default function AdminBanners() {
       setIsAdding(false);
       fetchBanners();
       setFormData({ title: '', image_url: '', link_url: '', display_order: 0, is_active: true });
-    } catch (err) {
-      toast.error('Add failed');
+    } catch (err: any) {
+      console.error('Add Banner Error:', err);
+      toast.error(err?.message || 'Add failed');
     } finally {
       setSaving(false);
     }
@@ -57,8 +59,9 @@ export default function AdminBanners() {
       if (error) throw error;
       setBanners(banners.filter(b => b.id !== id));
       toast.success('Banner removed');
-    } catch (err) {
-      toast.error('Delete failed');
+    } catch (err: any) {
+      console.error('Delete Banner Error:', err);
+      toast.error(err?.message || 'Delete failed');
     }
   };
 

@@ -22,7 +22,7 @@ import { useDeliveryLocation } from '../LocationContext';
 import { useAuth } from '../AuthContext';
 import { useCart } from '../CartContext';
 import { supabase } from '../lib/supabase';
-import { Category, Product } from '../types';
+import { Banner, Category, Product } from '../types';
 import { ProductCard } from '../components/ProductCard';
 
 const featureStrip = [
@@ -32,43 +32,76 @@ const featureStrip = [
   { icon: ShieldCheck, label: "Secure Payment", sub: "100% Safe", color: "text-emerald-500", bg: "bg-emerald-50" }
 ];
 
-const bannerData = [
+const fallbackBanners: Banner[] = [
   {
+    id: 'cool-drinks',
     title: "Cool Drinks Beat the Heat!",
-    sub: "Stay Cool, Stay Fresh",
-    gradient: "from-[#4CAF50] to-[#8BC34A]",
-    image: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=600"
+    image_url: "https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=600",
+    link_url: "",
+    is_active: true,
+    display_order: 1,
+    created_at: new Date().toISOString()
   },
   {
+    id: 'fresh-grocery',
     title: "Fresh Grocery Selection",
-    sub: "Delivered in Minutes",
-    gradient: "from-blue-600 to-indigo-400",
-    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600"
+    image_url: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600",
+    link_url: "",
+    is_active: true,
+    display_order: 2,
+    created_at: new Date().toISOString()
   }
 ];
 
 export default function Home() {
   const navigate = useNavigate();
   const { address, setIsModalOpen, pincode, isServiceable } = useDeliveryLocation();
-  const { user } = useAuth();
+  const { user, profile, isAdmin, isVendor, isDelivery, loading: authLoading } = useAuth();
   const { totalItems, addToCart, items } = useCart();
   const [categories, setCategories] = useState<Category[]>([]);
   const [bestSellers, setBestSellers] = useState<Product[]>([]);
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    fetchData();
-    if (bannerData.length > 1) {
-      const interval = setInterval(() => {
-        setCurrentSlide(prev => (prev + 1) % bannerData.length);
-      }, 5000);
-      return () => clearInterval(interval);
+    if (!authLoading && user) {
+       if (isAdmin) {
+          navigate('/admin', { replace: true });
+          return;
+       } else if (isVendor) {
+          navigate('/vendor', { replace: true });
+          return;
+       } else if (isDelivery) {
+          navigate('/delivery/dashboard', { replace: true });
+          return;
+       }
     }
+  }, [user, isAdmin, isVendor, isDelivery, authLoading, navigate]);
+
+  useEffect(() => {
+    fetchData();
+    // Start interval only for initial setup
+    const interval = setInterval(() => {
+      setCurrentSlide(curr => {
+        // Use a functional update to get current banners state? No, we don't have access to banners length inside this generic update unless we have a ref to it.
+        // It's easier:
+        return curr + 1; // we'll modulo it in the render
+      });
+    }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const fetchData = async () => {
     try {
+      // Fetch Banners
+      const { data: bannerData } = await supabase.from('banners').select('*').eq('is_active', true).order('display_order');
+      if (bannerData && bannerData.length > 0) {
+        setBanners(bannerData);
+      } else {
+        setBanners(fallbackBanners);
+      }
+
       // 1. Get Categories
       const { data: cats } = await supabase.from('categories').select('*').order('name');
       
@@ -173,39 +206,68 @@ export default function Home() {
 
       {/* 🔹 HERO BANNER */}
       <div className="px-4 mb-8">
-        <div className="relative aspect-[335/200] w-full rounded-[2.5rem] bg-amber-50 overflow-hidden border border-white shadow-xl shadow-amber-900/5 group">
-          {/* Background Texture/Shapes */}
-          <div className="absolute top-0 right-0 w-1/2 h-full bg-amber-100/30 skew-x-[-12deg] translate-x-12" />
-          
-          <div className="absolute inset-0 p-6 flex flex-col justify-center z-10 w-[60%]">
-            <p className="text-slate-600 text-[10px] md:text-xs font-bold mb-1">Everything You Need,</p>
-            <h2 className="text-2xl md:text-4xl font-black text-[#C49B3B] leading-[1.1] tracking-tighter mb-4">
-              Delivered in <br /> 10 Minutes
-            </h2>
-            <p className="text-slate-400 text-[9px] md:text-[10px] font-bold mb-6">Fast. Reliable. Always.</p>
-            <button 
-              onClick={() => navigate('/categories')}
-              className="w-fit bg-[#C49B3B] text-white px-5 py-2 md:px-6 md:py-2.5 rounded-full font-black uppercase tracking-widest text-[9px] md:text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-900/20"
-            >
-              Shop Now <ArrowRight className="h-3 w-3" />
-            </button>
-          </div>
-          
-          <div className="absolute right-0 top-0 bottom-0 w-[55%] flex items-center justify-end p-2 md:p-4">
-             <img 
-               src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=600" 
-               alt="" 
-               className="h-full object-contain filter drop-shadow-2xl translate-x-4" 
-             />
-          </div>
+        <div 
+          onClick={() => {
+            if (banners.length === 0) return;
+            const safeSlide = currentSlide % banners.length;
+            const activeBanner = banners[safeSlide];
+            if (activeBanner?.link_url) {
+              navigate(activeBanner.link_url);
+            } else {
+              navigate('/categories');
+            }
+          }}
+          className="relative aspect-[335/200] w-full rounded-[2.5rem] bg-amber-50 overflow-hidden border border-white shadow-xl shadow-amber-900/5 group cursor-pointer"
+        >
+          {banners.length > 0 && banners.map((banner, index) => {
+            const safeSlide = currentSlide % banners.length;
+            return (
+              <div 
+                key={banner.id}
+                className={cn(
+                  "absolute inset-0 transition-opacity duration-1000",
+                  index === safeSlide ? "opacity-100" : "opacity-0"
+                )}
+              >
+                {/* Image filling the container */}
+                <img 
+                  src={banner.image_url} 
+                  alt={banner.title} 
+                  className="absolute inset-0 w-full h-full object-cover" 
+                />
+                
+                {/* Gradient Overlay for text readability if needed */}
+                <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
+                
+                {/* Content */}
+                <div className="absolute inset-0 p-6 flex flex-col justify-center z-10 w-[70%]">
+                  <h2 className="text-2xl md:text-4xl font-black text-white leading-[1.1] tracking-tighter mb-4">
+                    {banner.title}
+                  </h2>
+                  <button 
+                    className="w-fit bg-[#C49B3B] text-white px-5 py-2 md:px-6 md:py-2.5 rounded-full font-black uppercase tracking-widest text-[9px] md:text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-900/20"
+                  >
+                    Shop Now <ArrowRight className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
 
-          {/* 10 MINS Badge */}
-          <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center justify-center p-0.5 rounded-full bg-white/20 backdrop-blur-sm border border-white/30 z-[11]">
-             <div className="bg-white rounded-full h-16 w-16 md:h-20 md:w-20 flex flex-col items-center justify-center border-2 border-amber-100 p-1 shadow-sm">
-                <span className="text-xl md:text-2xl font-black text-amber-600 leading-none">10</span>
-                <span className="text-[6px] md:text-[7px] font-black text-slate-400 uppercase tracking-tighter text-center">Minutes<br/>Delivery</span>
-             </div>
-          </div>
+          {/* Dots Indicator */}
+          {banners.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
+              {banners.map((_, idx) => (
+                <div 
+                  key={idx}
+                  className={cn(
+                    "h-1.5 rounded-full transition-all duration-300",
+                    idx === (currentSlide % banners.length) ? "w-4 bg-[#C49B3B]" : "w-1.5 bg-white/50"
+                  )}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

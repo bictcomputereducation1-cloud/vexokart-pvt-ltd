@@ -1,11 +1,24 @@
 import React from 'react';
-import { Outlet, Navigate, Link, useLocation } from 'react-router-dom';
+import { Outlet, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { Package, User } from 'lucide-react';
+import { Package, User, LogOut } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { toast } from 'sonner';
 
 export function DeliveryLayout({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      toast.success('Logged out successfully');
+      navigate('/login');
+    } catch (error) {
+      toast.error('Failed to log out');
+    }
+  };
 
   // For this context, allow either admin or a specific delivery role if we had one.
   // We'll let profile?.role run it.
@@ -49,6 +62,13 @@ export function DeliveryLayout({ children }: { children: React.ReactNode }) {
             <User className="h-5 w-5" />
             Profile
           </Link>
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors mt-8"
+          >
+            <LogOut className="h-5 w-5" />
+            Logout
+          </button>
         </nav>
       </aside>
 

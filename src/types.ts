@@ -20,6 +20,34 @@ export interface Product {
   id: string;
   name: string;
   description: string | null;
+  brand?: string | null;
+  product_type?: string | null;
+  weight?: string | null;
+  speciality?: string | null;
+  shelf_life?: string | null;
+  highlights?: string[] | null;
+  specifications?: any | null;
+  
+  // New Seller Fields
+  upc?: string | null;
+  unit_value?: string | null;
+  unit_type?: string | null;
+  hsn_code?: string | null;
+  gst_percentage?: number | null;
+  vendor_margin?: number | null;
+  delivery_charges?: number | null;
+  attributes?: any | null;
+  offer_percentage?: number | null;
+  min_order_qty?: number | null;
+  max_order_qty?: number | null;
+  images?: string[] | null;
+  video_url?: string | null;
+  vendor_id?: string | null;
+  verification_status?: 'draft' | 'pending' | 'approved' | 'rejected' | null;
+  admin_comments?: string | null;
+  approved_at?: string | null;
+  published_at?: string | null;
+
   price: number;
   original_price: number;
   category_id: string | null;
@@ -38,6 +66,8 @@ export interface Order {
   vendor_id: string | null;
   service_area_id: string | null;
   delivery_boy_id?: string | null;
+  delivery_otp?: string | null;
+  delivered_at?: string | null;
   status: string;
   payment_method: 'cod' | 'online' | null;
   payment_status: 'pending' | 'paid' | 'failed';

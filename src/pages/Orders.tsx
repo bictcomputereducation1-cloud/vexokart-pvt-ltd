@@ -186,6 +186,14 @@ export default function Orders() {
                      )}
                    </div>
                  </div>
+
+                 {order.status === 'out_for_delivery' && order.delivery_otp && (
+                   <div className="flex flex-col items-center bg-sky-100 px-4 py-2 rounded-xl text-sky-800">
+                     <span className="text-[10px] font-black uppercase tracking-widest text-sky-600">Delivery OTP</span>
+                     <span className="text-sm font-black tracking-[0.2em] font-mono">{order.delivery_otp}</span>
+                   </div>
+                 )}
+
                  <div className="flex items-center gap-2">
                    <button 
                      onClick={() => handleReorder(order)}

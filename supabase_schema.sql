@@ -78,6 +78,10 @@ CREATE TABLE banners (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 
+ALTER TABLE banners ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Everyone can view banners" ON banners FOR SELECT USING (true);
+CREATE POLICY "Admins can manage banners" ON banners FOR ALL USING (public.is_admin());
+
 -- 3. Products table
 CREATE TABLE products (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -90,6 +94,13 @@ CREATE TABLE products (
   stock INTEGER DEFAULT 0,
   cod_available BOOLEAN DEFAULT true,
   online_payment BOOLEAN DEFAULT true,
+  brand TEXT,
+  product_type TEXT,
+  weight TEXT,
+  speciality TEXT,
+  shelf_life TEXT,
+  highlights JSONB,
+  specifications JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
 );
 

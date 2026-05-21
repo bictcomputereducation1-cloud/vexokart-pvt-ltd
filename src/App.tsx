@@ -33,6 +33,7 @@ import AdminDeliveryBoys from './pages/AdminDeliveryBoys';
 import AdminAreas from './pages/AdminAreas';
 import AdminBanners from './pages/AdminBanners';
 import VendorDashboard from './pages/VendorDashboard';
+import VendorProductUpload from './pages/VendorProductUpload';
 import VendorPrintLabel from './pages/VendorPrintLabel';
 import DeliveryDashboard from './pages/DeliveryDashboard';
 import { AdminLayout } from './components/AdminLayout';
@@ -82,10 +83,11 @@ export default function App() {
                 {/* Vendor Routes */}
                 <Route path="/vendor" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
                 <Route path="/vendor/dashboard" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
+                <Route path="/vendor/products/new" element={<ProtectedRoute vendorOnly><VendorProductUpload /></ProtectedRoute>} />
                 <Route path="/vendor/print/:id" element={<ProtectedRoute vendorOnly><VendorPrintLabel /></ProtectedRoute>} />
                 
                 {/* Delivery Route */}
-                <Route path="/delivery/dashboard" element={<ProtectedRoute><DeliveryLayout><DeliveryDashboard /></DeliveryLayout></ProtectedRoute>} />
+                <Route path="/delivery/dashboard" element={<ProtectedRoute deliveryOnly><DeliveryLayout><DeliveryDashboard /></DeliveryLayout></ProtectedRoute>} />
               </Routes>
             </Layout>
           </Router>

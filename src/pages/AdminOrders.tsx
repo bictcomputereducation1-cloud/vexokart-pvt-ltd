@@ -23,13 +23,31 @@ export default function AdminOrders() {
   }, []);
 
   const fetchOrders = async () => {
+    setLoading(true);
     try {
-      const response = await fetch('/api/admin/orders');
+      console.log("[DEBUG] Fetching admin orders from: /api/admin/orders");
+      const response = await fetch('/api/admin/orders', {
+        headers: { 'Accept': 'application/json' }
+      });
+      
+      console.log(`[DEBUG] Orders API Status: ${response.status}`);
+      const contentType = response.headers.get("content-type");
+
       if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Orders API Error (${response.status}): ${text.slice(0, 100)}`);
+        let errorText = "";
+        try { errorText = await response.text(); } catch(e) {}
+        console.error("[DEBUG] Orders API Error:", errorText);
+        throw new Error(`API Error (${response.status}): ${errorText.slice(0, 100)}`);
       }
+
+      if (!contentType || !contentType.includes("application/json")) {
+        const body = await response.text();
+        console.error("[DEBUG] Invalid Content-Type for orders. Got:", contentType, "Body snippet:", body.slice(0, 100));
+        throw new Error(`Invalid response format: Expected JSON but got ${contentType}. This suggests a 404 falling back to HTML.`);
+      }
+
       const data = await response.json();
+      console.log("[DEBUG] Orders Success:", data?.length, "orders found");
       
       if (Array.isArray(data)) {
         const uniqueOrders = Array.from(new Map(data.filter(o => o && o.id).map((o: any) => [o.id, o])).values());

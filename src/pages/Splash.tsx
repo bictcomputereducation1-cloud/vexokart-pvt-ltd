@@ -6,16 +6,29 @@ import { useAuth } from '../AuthContext';
 
 export default function Splash() {
   const navigate = useNavigate();
-  const { user, loading: authLoading } = useAuth();
+  const { user, profile, loading: authLoading, isAdmin, isVendor, isDelivery } = useAuth();
 
   useEffect(() => {
+    if (authLoading) return; // Wait for auth to finish loading before redirecting
+
     const timer = setTimeout(() => {
-      // Navigate to home after 2.5 seconds as requested
-      navigate('/home', { replace: true });
-    }, 2500);
+      if (user) {
+        if (isAdmin) {
+          navigate('/admin', { replace: true });
+        } else if (isVendor) {
+          navigate('/vendor', { replace: true });
+        } else if (isDelivery) {
+          navigate('/delivery/dashboard', { replace: true });
+        } else {
+          navigate('/home', { replace: true });
+        }
+      } else {
+        navigate('/home', { replace: true });
+      }
+    }, 400);
 
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, [navigate, authLoading, user, isAdmin, isVendor, isDelivery]);
 
   return (
     <motion.div 
