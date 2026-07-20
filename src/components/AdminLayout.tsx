@@ -14,7 +14,8 @@ import {
   Image as ImageIcon,
   Locate,
   GitMerge,
-  LogOut
+  LogOut,
+  Wallet
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabase';
@@ -49,6 +50,7 @@ export const AdminLayout: React.FC<AdminLayoutProps> = ({ children }) => {
     { icon: ImageIcon, label: 'Banners', path: '/admin/banners' },
     { icon: ShoppingBag, label: 'Orders', path: '/admin/orders' },
     { icon: Ticket, label: 'Coupons', path: '/admin/coupons' },
+    { icon: Wallet, label: 'Payout Settlements', path: '/admin/payouts' },
   ];
 
   return (

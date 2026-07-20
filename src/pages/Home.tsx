@@ -24,6 +24,8 @@ import { useCart } from '../CartContext';
 import { supabase } from '../lib/supabase';
 import { Banner, Category, Product } from '../types';
 import { ProductCard } from '../components/ProductCard';
+import { fetchLiveAndInStockProducts } from '../lib/productFetcher';
+import { MOCK_CATEGORIES, MOCK_BANNERS } from '../lib/defaultData';
 
 const featureStrip = [
   { icon: Star, label: "Best Quality", sub: "Premium Products", color: "text-amber-500", bg: "bg-amber-50" },
@@ -65,74 +67,161 @@ export default function Home() {
   const [currentSlide, setCurrentSlide] = useState(0);
 
   useEffect(() => {
-    if (!authLoading && user) {
-       if (isAdmin) {
+    if (!authLoading) {
+      console.log("Auth User:", user);
+      console.log("Database Profile:", profile);
+      console.log("Database Role:", profile?.role || null);
+    }
+
+    if (!authLoading && user && profile) {
+       if (profile.role === 'admin') {
+          console.log("Navigation: /admin");
           navigate('/admin', { replace: true });
           return;
-       } else if (isVendor) {
+       } else if (profile.role === 'vendor') {
+          console.log("Navigation: /vendor");
           navigate('/vendor', { replace: true });
           return;
-       } else if (isDelivery) {
-          navigate('/delivery/dashboard', { replace: true });
+       } else if (profile.role === 'delivery') {
+          console.log("Navigation: /delivery");
+          navigate('/delivery', { replace: true });
           return;
        }
     }
-  }, [user, isAdmin, isVendor, isDelivery, authLoading, navigate]);
+  }, [user, profile, authLoading, navigate]);
 
+  // Load initial fallback/cache & setup Realtime changes
   useEffect(() => {
-    fetchData();
-    // Start interval only for initial setup
+    try {
+      const cached = sessionStorage.getItem('VEXO_HOME_CACHE');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Cache is valid for 5 minutes
+        if (Date.now() - parsed.timestamp < 300000) {
+          setBanners(parsed.banners || []);
+          setCategories(parsed.categories || []);
+          setBestSellers(parsed.bestSellers || []);
+          setLoading(false);
+        }
+      }
+    } catch (e) {
+      // Ignore cache error
+    }
+
+    // Absolute fallback timer to prevent endless loading spinner if DB or API is extremely slow
+    const absoluteFallback = setTimeout(() => {
+      console.warn("[Home] Home screen took too long to load from DB. Forcing loading = false...");
+      setLoading(false);
+    }, 2800);
+
+    fetchData().finally(() => {
+      clearTimeout(absoluteFallback);
+    });
+
+    // 8. Ensure products inserted by vendors appear instantly in customer app.
+    // 10. Add realtime refresh after product insert.
+    console.log("[DEBUG] Registering realtime products listener for Home page...");
+    const productsChannel = supabase
+      .channel('products-realtime-home')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          console.log("[DEBUG] Realtime product change detected on home page! Refetching products...", payload);
+          fetchData();
+        }
+      )
+      .subscribe();
+
     const interval = setInterval(() => {
-      setCurrentSlide(curr => {
-        // Use a functional update to get current banners state? No, we don't have access to banners length inside this generic update unless we have a ref to it.
-        // It's easier:
-        return curr + 1; // we'll modulo it in the render
-      });
+      setCurrentSlide(curr => curr + 1);
     }, 5000);
-    return () => clearInterval(interval);
+
+    return () => {
+      clearTimeout(absoluteFallback);
+      clearInterval(interval);
+      supabase.removeChannel(productsChannel);
+    };
   }, []);
 
   const fetchData = async () => {
     try {
-      // Fetch Banners
-      const { data: bannerData } = await supabase.from('banners').select('*').eq('is_active', true).order('display_order');
-      if (bannerData && bannerData.length > 0) {
-        setBanners(bannerData);
-      } else {
-        setBanners(fallbackBanners);
-      }
-
-      // 1. Get Categories
-      const { data: cats } = await supabase.from('categories').select('*').order('name');
-      
-      if (cats) {
-        // 2. Get Products for previews
-        const { data: prods } = await supabase
-          .from('products')
-          .select('id, name, image_url, category_id')
-          .in('category_id', cats.map(c => c.id));
-
-        if (prods) {
-          const uniqueProds = Array.from(new Map(prods.map(p => [p.id, p])).values());
-          const catsWithData = cats.map(cat => {
-            const catProds = uniqueProds.filter(p => p.category_id === cat.id);
-            return {
-              ...cat,
-              previewProducts: catProds.slice(0, 4),
-              totalCount: catProds.length
-            };
-          });
-          setCategories(Array.from(new Map(catsWithData.map(c => [c.id, c])).values()) as any);
+      // 1. Fetch Banners
+      let currentBanners = fallbackBanners;
+      try {
+        const { data: bannerData, error: bError } = await supabase
+          .from('banners')
+          .select('*')
+          .eq('is_active', true)
+          .order('display_order');
+        
+        if (bError) {
+          console.error("[API Fail] Error fetching banners:", bError);
+          currentBanners = MOCK_BANNERS;
+        } else if (!bannerData || bannerData.length === 0) {
+          currentBanners = MOCK_BANNERS;
         } else {
-          setCategories(Array.from(new Map(cats.map(c => [c.id, c])).values()));
+          currentBanners = bannerData;
         }
+      } catch (e) {
+        console.error("[Home] Exception fetching banners, using mocks:", e);
+        currentBanners = MOCK_BANNERS;
+      }
+      setBanners(currentBanners);
+
+      // 2. Fetch Categories
+      let activeCategories: any[] = [];
+      try {
+        const { data: cats, error: catsError } = await supabase
+          .from('categories')
+          .select('*')
+          .order('name');
+        
+        if (catsError) {
+          console.error("[API Fail] Error fetching categories:", catsError);
+          activeCategories = MOCK_CATEGORIES;
+        } else if (!cats || cats.length === 0) {
+          console.log("[Home] Categories table is empty, resorting to mock categories.");
+          activeCategories = MOCK_CATEGORIES;
+        } else {
+          activeCategories = cats;
+        }
+      } catch (catErr) {
+        console.error("[Home] Exception caught fetching categories, using fallback:", catErr);
+        activeCategories = MOCK_CATEGORIES;
       }
 
-      // 3. Best sellers
-      const { data: bestProds } = await supabase.from('products').select('*').limit(6);
-      if (bestProds) setBestSellers(Array.from(new Map(bestProds.map(p => [p.id, p])).values()));
+      // 5. Fetch products safely using manual merge to handle loose joins and broken keys
+      const prods = await fetchLiveAndInStockProducts();
+
+      // Merge products with categories for section previews
+      const finalCatsWithData = activeCategories.map(cat => {
+        const catProds = prods.filter(p => p.category_id === cat.id || p.category_id === cat.slug);
+        return {
+          ...cat,
+          previewProducts: catProds.slice(0, 4),
+          totalCount: catProds.length
+        };
+      });
+
+      setCategories(finalCatsWithData);
+      setBestSellers(prods.slice(0, 8));
+
+      // Write to SessionStorage Cache
+      try {
+        sessionStorage.setItem('VEXO_HOME_CACHE', JSON.stringify({
+          banners: currentBanners,
+          categories: finalCatsWithData,
+          bestSellers: prods.slice(0, 8),
+          timestamp: Date.now()
+        }));
+      } catch (err) {
+        // Cache issue fallback
+      }
+
     } catch (err) {
-      console.error(err);
+      // 3. If API fails: show error in console.
+      console.error("[HOME PAGE PRODUCTS API FAILURE]:", err);
     } finally {
       setLoading(false);
     }
@@ -329,11 +418,17 @@ export default function Home() {
         </div>
 
         <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
-          {bestSellers.map(p => (
-            <div key={p.id} className="min-w-[170px] max-w-[170px]">
-              <ProductCard product={p} />
+          {bestSellers.length > 0 ? (
+            bestSellers.map(p => (
+              <div key={p.id} className="min-w-[170px] max-w-[170px]">
+                <ProductCard product={p} />
+              </div>
+            ))
+          ) : (
+            <div className="w-full text-center py-8 bg-white/50 rounded-2xl border border-dashed border-slate-200 text-xs font-black uppercase text-slate-400 tracking-widest p-6 mx-4">
+              No products available
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -353,11 +448,17 @@ export default function Home() {
         </div>
 
         <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
-          {bestSellers.slice().reverse().map(p => (
-            <div key={p.id} className="min-w-[170px] max-w-[170px]">
-              <ProductCard product={p} />
+          {bestSellers.length > 0 ? (
+            bestSellers.slice().reverse().map(p => (
+              <div key={p.id} className="min-w-[170px] max-w-[170px]">
+                <ProductCard product={p} />
+              </div>
+            ))
+          ) : (
+            <div className="w-full text-center py-8 bg-white/50 rounded-2xl border border-dashed border-slate-200 text-xs font-black uppercase text-slate-400 tracking-widest p-6 mx-4">
+              No products available
             </div>
-          ))}
+          )}
         </div>
       </div>
 

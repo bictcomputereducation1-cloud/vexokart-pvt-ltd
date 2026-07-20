@@ -101,7 +101,7 @@ export default function AdminSubcategories() {
             <DialogHeader>
               <DialogTitle className="text-2xl font-black">{editingSub ? 'Edit Subcategory' : 'Add New Subcategory'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSave} className="space-y-4 pt-4">
+            <form key={editingSub?.id || 'new'} onSubmit={handleSave} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <label className="text-xs font-black uppercase tracking-widest text-slate-400">Parent Category</label>
                 <select 

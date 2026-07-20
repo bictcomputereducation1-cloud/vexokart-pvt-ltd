@@ -328,23 +328,36 @@ export default function VendorProductUpload() {
   };
 
   const handleSaveDraft = async (silent = false) => {
-    if (!profile?.id) return;
     try {
       if (!silent) setIsSaving(true);
 
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      const user = authData?.user;
+      console.log("auth user id:", user?.id);
+
+      if (authErr || !user) {
+        if (!silent) toast.error("Not authenticated");
+        return;
+      }
+
       const { data: vendor, error: vendorErr } = await supabase
         .from('vendors')
-        .select('id')
-        .eq('user_id', profile.id)
+        .select('*')
+        .eq('user_id', user.id)
         .single();
 
+      console.log("fetched vendor:", vendor);
+
       if (vendorErr || !vendor) {
-        if (!silent) toast.error('Vendor profile not found');
+        if (!silent) toast.error("Vendor profile missing");
         return;
       }
       
       const payload = {
         ...formData,
+        selling_price: typeof formData.selling_price === 'number' ? formData.selling_price : formData.price,
+        mrp: typeof formData.mrp === 'number' ? formData.mrp : formData.original_price,
+        stock_units: typeof formData.stock_units === 'number' ? formData.stock_units : formData.stock,
         vendor_id: vendor.id,
         verification_status: 'draft'
       };
@@ -353,12 +366,16 @@ export default function VendorProductUpload() {
       if (!payload.price) payload.price = 0;
       if (!payload.original_price) payload.original_price = 0;
 
+      console.log("insert payload:", payload);
+
       let res;
       if (formData.id) {
          res = await supabase.from('products').update(payload).eq('id', formData.id).select();
       } else {
          res = await supabase.from('products').insert([payload]).select();
       }
+
+      console.log("Supabase insert response:", res);
 
       if (res.error) throw res.error;
       
@@ -368,7 +385,7 @@ export default function VendorProductUpload() {
       setLastSaved(new Date());
       if (!silent) toast.success('Draft saved successfully');
     } catch (error: any) {
-      if (!silent) toast.error('Failed to save draft');
+      if (!silent) toast.error(error.message || 'Failed to save draft');
       console.error(error);
     } finally {
       if (!silent) setIsSaving(false);
@@ -376,38 +393,55 @@ export default function VendorProductUpload() {
   };
 
   const handleSubmit = async () => {
-    if (!profile?.id) return;
     try {
       setIsSaving(true);
+
+      const { data: authData, error: authErr } = await supabase.auth.getUser();
+      const user = authData?.user;
+      console.log("auth user id:", user?.id);
+
+      if (authErr || !user) {
+        toast.error("Not authenticated");
+        return;
+      }
       
       const { data: vendor, error: vendorErr } = await supabase
         .from('vendors')
-        .select('id')
-        .eq('user_id', profile.id)
+        .select('*')
+        .eq('user_id', user.id)
         .single();
 
+      console.log("fetched vendor:", vendor);
+
       if (vendorErr || !vendor) {
-        toast.error('Vendor profile not found');
+        toast.error("Vendor profile missing");
         return;
       }
 
       const payload = {
         ...formData,
+        selling_price: typeof formData.selling_price === 'number' ? formData.selling_price : formData.price,
+        mrp: typeof formData.mrp === 'number' ? formData.mrp : formData.original_price,
+        stock_units: typeof formData.stock_units === 'number' ? formData.stock_units : formData.stock,
         vendor_id: vendor.id,
         verification_status: 'pending', // Move to pending review
         admin_comments: null // Clear old feedback upon resubmission
       };
 
+      console.log("insert payload:", payload);
+
       const res = formData.id 
-        ? await supabase.from('products').update(payload).eq('id', formData.id)
-        : await supabase.from('products').insert([payload]);
+        ? await supabase.from('products').update(payload).eq('id', formData.id).select()
+        : await supabase.from('products').insert([payload]).select();
+
+      console.log("Supabase insert response:", res);
 
       if (res.error) throw res.error;
       
       toast.success('Product submitted for review');
       navigate('/vendor/dashboard');
     } catch (error: any) {
-      toast.error('Failed to submit product');
+      toast.error(error.message || 'Failed to submit product');
       console.error(error);
     } finally {
       setIsSaving(false);

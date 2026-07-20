@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Menu, Navigation, CheckCircle2, MapPin, Search, Tag, Clock, Send, ChevronRight, Check, Package, Home as HomeIcon, FileText, Briefcase, History, User, FileDigit, RefreshCw, ChevronDown, LogOut, Truck } from 'lucide-react';
 import { Order } from '../types';
@@ -6,6 +6,7 @@ import { useAuth } from '../AuthContext';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 import { SwipeToAcceptButton } from '../components/SwipeToAcceptButton';
+import { apiCache } from '../lib/apiCache';
 
 type TabType = 'home' | 'orders' | 'available' | 'history' | 'profile';
 
@@ -24,12 +25,101 @@ export default function DeliveryDashboard() {
   const [otpInputs, setOtpInputs] = useState<Record<string, string>>({});
   const seenOrderAlerts = useRef<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (profile?.id) {
-      fetchDeliveryOrders();
-      fetchDeliveryBoyInfo();
+  const fetchDeliveryBoyInfo = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
+    try {
+      if (!profile?.id) return;
+
+      const info = await apiCache.fetchOnce<any>(`delivery_boy_info_${profile.id}`, async () => {
+        const { data, error } = await supabase
+          .from('delivery_boys')
+          .select('*')
+          .eq('user_id', profile.id)
+          .single();
+          
+        if (error && error.code !== 'PGRST116') {
+          console.error("Error fetching delivery boy info:", error);
+          throw error;
+        }
+        
+        if (data) {
+          let areaData = null;
+          if (data.service_area_id) {
+             const { data: area } = await supabase.from('service_areas').select('name').eq('id', data.service_area_id).single();
+             if (area) areaData = area;
+          }
+          return {
+             ...data,
+             full_name: data.full_name || data.name || profile?.name || 'Delivery Boy',
+             service_areas: areaData
+          };
+        } else {
+           const dummyData = {
+             user_id: profile.id,
+             name: profile.name || 'New Delivery Boy',
+             full_name: profile.name || 'New Delivery Boy',
+             phone: '+91 9999999999',
+             email: profile.email || '',
+             vehicle_type: 'BIKE',
+             is_active: true,
+             created_at: new Date().toISOString()
+           };
+           
+           const { data: newDbBoy, error: insertError } = await supabase
+             .from('delivery_boys')
+             .insert(dummyData)
+             .select('*')
+             .single();
+              
+           if (!insertError && newDbBoy) {
+              return {...newDbBoy, full_name: newDbBoy.full_name || newDbBoy.name || profile.name };
+           } else {
+              return dummyData;
+           }
+        }
+      }, { forceRefetch, signal });
+
+      if (info) {
+        setDeliveryBoyInfo(info);
+        setIsAvailable(info.is_active ?? true);
+      }
+    } catch (e: any) {
+      if (e.name === 'AbortError') return;
+      console.error("Exception fetching delivery boy info:", e);
     }
   }, [profile]);
+
+  const fetchDeliveryOrders = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
+    try {
+      setLoading(true);
+      if (!profile?.id) return;
+      
+      const ordersData = await apiCache.fetchOnce<Order[]>(`delivery_orders_${profile.id}`, async (fetchSignal) => {
+        const response = await fetch(`/api/delivery/orders?userId=${profile.id}`, { signal: fetchSignal });
+        if (!response.ok) {
+          throw new Error('Failed to fetch delivery orders');
+        }
+        return await response.json();
+      }, { forceRefetch, signal });
+
+      setOrders(ordersData || []);
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
+      console.error('Error fetching delivery orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    if (profile?.id) {
+      const controller = new AbortController();
+      fetchDeliveryOrders(false, controller.signal);
+      fetchDeliveryBoyInfo(false, controller.signal);
+      return () => {
+        controller.abort();
+      };
+    }
+  }, [profile, fetchDeliveryOrders, fetchDeliveryBoyInfo]);
 
   useEffect(() => {
     // Check for NEW available orders to show the alert automatically
@@ -43,84 +133,6 @@ export default function DeliveryDashboard() {
       }
     }
   }, [orders]);
-
-  const fetchDeliveryBoyInfo = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('delivery_boys')
-        .select('*')
-        .eq('user_id', profile?.id)
-        .single();
-        
-      if (error && error.code !== 'PGRST116') {
-        console.error("Error fetching delivery boy info:", error);
-      }
-      
-      if (data) {
-        let areaData = null;
-        if (data.service_area_id) {
-           const { data: area } = await supabase.from('service_areas').select('name').eq('id', data.service_area_id).single();
-           if (area) areaData = area;
-        }
-        const enhancedData = {
-           ...data,
-           full_name: data.full_name || data.name || profile?.name || 'Delivery Boy',
-           service_areas: areaData
-        };
-        console.log("Delivery boy data:", enhancedData);
-        setDeliveryBoyInfo(enhancedData);
-        setIsAvailable(enhancedData.is_active ?? true);
-      } else if (profile?.id) {
-         // Create dummy data using old column `name` just in case old schema
-         const dummyData = {
-           user_id: profile.id,
-           name: profile.name || 'New Delivery Boy',
-           full_name: profile.name || 'New Delivery Boy', // Virtual
-           phone: '+91 9999999999',
-           email: profile.email || '',
-           vehicle_type: 'BIKE',
-           is_active: true,
-           created_at: new Date().toISOString()
-         };
-         
-         const { data: newDbBoy, error: insertError } = await supabase
-           .from('delivery_boys')
-           .insert(dummyData)
-           .select('*')
-           .single();
-           
-         if (!insertError && newDbBoy) {
-            setDeliveryBoyInfo({...newDbBoy, full_name: newDbBoy.full_name || newDbBoy.name || profile.name });
-            setIsAvailable(true);
-         } else {
-            // Fallback for UI if insert fails (e.g., due to RLS or schema mismatch)
-            setDeliveryBoyInfo(dummyData);
-            setIsAvailable(true);
-         }
-      }
-    } catch (e) {
-      console.error("Exception fetching delivery boy info:", e);
-    }
-  }
-
-  const fetchDeliveryOrders = async () => {
-    try {
-      setLoading(true);
-      if (!profile?.id) return;
-      
-      const response = await fetch(`/api/delivery/orders?userId=${profile.id}`);
-      if (!response.ok) {
-        throw new Error('Failed to fetch delivery orders');
-      }
-      const ordersData = await response.json();
-      setOrders(ordersData as any);
-
-    } catch (error) {
-      console.error('Error fetching delivery orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
@@ -144,6 +156,12 @@ export default function DeliveryDashboard() {
       if (!response.ok) {
         throw new Error('Failed to update status');
       }
+
+      if (profile?.id) {
+        apiCache.invalidate(`delivery_orders_${profile.id}`);
+        apiCache.invalidate(`vendor_orders_${profile.id}`);
+      }
+      apiCache.invalidate('admin_orders');
 
       setOrders(orders.map(o => o.id === orderId ? { ...o, ...updateData } : o));
       if (newOrderAlert?.id === orderId) {
@@ -186,6 +204,12 @@ export default function DeliveryDashboard() {
         throw new Error('Failed to complete delivery!');
       }
       
+      if (profile?.id) {
+        apiCache.invalidate(`delivery_orders_${profile.id}`);
+        apiCache.invalidate(`vendor_orders_${profile.id}`);
+      }
+      apiCache.invalidate('admin_orders');
+
       toast.success('🎉 Delivery Successful!');
       
       // Update local state and trigger animation/rerender

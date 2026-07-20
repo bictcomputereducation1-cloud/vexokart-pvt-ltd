@@ -7,7 +7,20 @@ if (!supabaseUrl || !supabaseAnonKey) {
   console.warn('Supabase URL or Anon Key is missing. Please check your .env file.');
 }
 
+// Bypasses browser-level cross-tab locks to prevent "Lock was released because another request stole it" in sandboxes
+const dummyLock = async <R>(name: string, acquireTimeout: number, fn: () => Promise<R>): Promise<R> => {
+  return fn();
+};
+
 export const supabase = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
-  supabaseAnonKey || 'placeholder'
+  supabaseAnonKey || 'placeholder',
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      lock: dummyLock,
+    }
+  }
 );

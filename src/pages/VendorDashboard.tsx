@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { ShoppingBag, Package, Truck, CheckCircle2, MapPin, Printer, Bell, Volume2, X, Plus, Clock, XCircle, Pencil } from 'lucide-react';
 import { Order, Product } from '../types';
@@ -7,6 +7,7 @@ import { useAuth } from '../AuthContext';
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
+import { apiCache } from '../lib/apiCache';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 
@@ -18,10 +19,103 @@ export default function VendorDashboard() {
   const [newOrderAlert, setNewOrderAlert] = useState<Order | null>(null);
   const [deliveryBoys, setDeliveryBoys] = useState<any[]>([]);
   const [selectedDeliveryBoys, setSelectedDeliveryBoys] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState('orders');
-  const { profile } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [activeTab, setActiveTab] = useState(() => {
+    const tabParam = new URLSearchParams(location.search).get('tab');
+    return tabParam === 'products' ? 'products' : 'orders';
+  });
+
+  useEffect(() => {
+    const tabParam = new URLSearchParams(location.search).get('tab');
+    if (tabParam === 'products' || tabParam === 'orders') {
+      setActiveTab(tabParam);
+    }
+  }, [location.search]);
+
+  const { profile } = useAuth();
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  const fetchVendorProducts = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
+    try {
+      setLoading(true);
+      if (!profile?.id) return;
+
+      const vendor = await apiCache.fetchOnce<any>(`vendor_data_${profile.id}`, async () => {
+        const { data, error } = await supabase.from('vendors').select('*').eq('user_id', profile.id).single();
+        if (error) throw error;
+        return data;
+      }, { forceRefetch, signal });
+
+      if (!vendor) return;
+
+      const productsData = await apiCache.fetchOnce<Product[]>(`vendor_products_${profile.id}`, async () => {
+        const { data, error } = await supabase.from('products').select('*, categories(name)').eq('vendor_id', vendor.id).order('created_at', { ascending: false });
+        if (error) throw error;
+        return data as Product[];
+      }, { forceRefetch, signal });
+
+      setProducts(productsData || []);
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
+      toast.error('Failed to load products');
+    } finally {
+      setLoading(false);
+    }
+  }, [profile]);
+
+  const fetchVendorOrders = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
+    try {
+      setLoading(true);
+      if (!profile?.id) return;
+
+      const vendor = await apiCache.fetchOnce<any>(`vendor_data_${profile.id}`, async () => {
+        const { data, error } = await supabase.from('vendors').select('*').eq('user_id', profile.id).single();
+        if (error) throw error;
+        return data;
+      }, { forceRefetch, signal });
+
+      if (!vendor) {
+        setLoading(false);
+        return;
+      }
+      setVendorData(vendor);
+      
+      if (!vendor.service_area_id || !vendor.id) {
+        setOrders([]);
+        setLoading(false);
+        return;
+      }
+
+      const ordersData = await apiCache.fetchOnce<Order[]>(`vendor_orders_${profile.id}`, async (fetchSignal) => {
+        const response = await fetch(`/api/vendor/orders?userId=${profile.id}`, { 
+          headers: { 'Accept': 'application/json' },
+          signal: fetchSignal 
+        });
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        return await response.json();
+      }, { forceRefetch, signal });
+
+      setOrders(ordersData || []);
+
+      try {
+        const allBoys = await apiCache.fetchOnce<any[]>('admin_delivery_boys', async (fetchSignal) => {
+          const response = await fetch('/api/admin/delivery-boys', { signal: fetchSignal });
+          if (!response.ok) throw new Error('Failed to load boys');
+          return await response.json();
+        }, { forceRefetch, signal });
+
+        if (allBoys) {
+          const dbBoys = allBoys.filter((boy: any) => boy.service_area_id === vendor.service_area_id && boy.is_active === true);
+          setDeliveryBoys(dbBoys.length === 0 ? allBoys.filter((boy: any) => boy.is_active === true) : dbBoys);
+        }
+      } catch (err) {}
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
+    } finally {
+      setLoading(false);
+    }
+  }, [profile]);
 
   useEffect(() => {
     const unlockAudio = () => {
@@ -35,19 +129,26 @@ export default function VendorDashboard() {
     window.addEventListener('click', unlockAudio);
     window.addEventListener('touchstart', unlockAudio);
 
-    if (profile?.id) {
-      if (activeTab === 'orders') {
-         fetchVendorOrders();
-      } else {
-         fetchVendorProducts();
-      }
-    }
-
     return () => {
       window.removeEventListener('click', unlockAudio);
       window.removeEventListener('touchstart', unlockAudio);
     };
-  }, [profile, activeTab]);
+  }, []);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const controller = new AbortController();
+
+    if (activeTab === 'orders') {
+       fetchVendorOrders(false, controller.signal);
+    } else {
+       fetchVendorProducts(false, controller.signal);
+    }
+
+    return () => {
+      controller.abort();
+    };
+  }, [profile, activeTab, fetchVendorOrders, fetchVendorProducts]);
 
   useEffect(() => {
     if (!vendorData?.service_area_id) return;
@@ -64,7 +165,7 @@ export default function VendorDashboard() {
   }, [vendorData]);
 
   const handleNewOrder = (order: Order) => {
-    if (activeTab === 'orders') fetchVendorOrders();
+    if (activeTab === 'orders') fetchVendorOrders(true);
     setNewOrderAlert(order);
     
     const audioUrl = 'https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg';
@@ -83,55 +184,6 @@ export default function VendorDashboard() {
     });
 
     setTimeout(() => { setNewOrderAlert(null); }, 10000);
-  };
-
-  const fetchVendorProducts = async () => {
-    try {
-      setLoading(true);
-      const { data: vendor } = await supabase.from('vendors').select('*').eq('user_id', profile?.id).single();
-      if (!vendor) return;
-
-      const { data, error } = await supabase.from('products').select('*, categories(name)').eq('vendor_id', vendor.id).order('created_at', { ascending: false });
-      if (error) throw error;
-      setProducts(data || []);
-    } catch (error) {
-      toast.error('Failed to load products');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchVendorOrders = async () => {
-    try {
-      setLoading(true);
-      const { data: vendor, error: vendorError } = await supabase.from('vendors').select('*').eq('user_id', profile?.id).single();
-      if (vendorError || !vendor) {
-        setLoading(false);
-        return;
-      }
-      setVendorData(vendor);
-      
-      if (!vendor.service_area_id || !vendor.id) {
-        setOrders([]);
-        return;
-      }
-
-      const response = await fetch(`/api/vendor/orders?userId=${profile?.id}`, { headers: { 'Accept': 'application/json' } });
-      if (!response.ok) throw new Error(`API Error: ${response.status}`);
-      const orders = await response.json();
-      setOrders(orders || []);
-
-      try {
-        const response = await fetch('/api/admin/delivery-boys');
-        if (response.ok) {
-          const allBoys = await response.json();
-          const dbBoys = allBoys.filter((boy: any) => boy.service_area_id === vendor.service_area_id && boy.is_active === true);
-          setDeliveryBoys(dbBoys.length === 0 ? allBoys.filter((boy: any) => boy.is_active === true) : dbBoys);
-        }
-      } catch (err) {}
-    } catch (error) {} finally {
-      setLoading(false);
-    }
   };
 
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
@@ -153,6 +205,10 @@ export default function VendorDashboard() {
       });
       if (!response.ok) throw new Error((await response.json()).error || 'Failed to update order');
       
+      if (profile?.id) {
+        apiCache.invalidate(`vendor_orders_${profile.id}`);
+      }
+      apiCache.invalidate('admin_orders');
       setOrders(orders.map(o => o.id === orderId ? { ...o, ...updateData } : o));
       toast.success(`Order ${newStatus}`);
     } catch (error) { toast.error('Failed to update status'); }
@@ -483,9 +539,14 @@ export default function VendorDashboard() {
                     </TableCell>
                     <TableCell className="font-bold text-green-600">₹{product.price}</TableCell>
                     <TableCell>
-                      <span className={product.stock < 10 ? 'text-red-500 font-bold' : 'font-semibold text-slate-700'}>
-                        {product.stock}
-                      </span>
+                      {(() => {
+                        const stock_val = typeof product.stock_units === 'number' ? product.stock_units : (product.stock !== undefined ? product.stock : 0);
+                        return (
+                          <span className={stock_val <= 0 ? 'text-red-600 font-black bg-red-50 px-2 py-1 rounded uppercase min-w-[max-content] inline-block text-[10px]' : stock_val < 5 ? 'text-orange-500 font-bold' : 'font-semibold text-slate-700'}>
+                            {stock_val <= 0 ? 'Out of Stock' : stock_val}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {product.verification_status === 'pending' && <span className="bg-yellow-50 text-yellow-700 px-2.5 py-1 rounded-md text-[10px] font-black uppercase tracking-wider border border-yellow-200">Pending Approval</span>}

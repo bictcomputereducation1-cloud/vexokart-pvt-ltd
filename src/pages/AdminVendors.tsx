@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { ServiceableArea } from '../types';
 import { Store, UserPlus, MapPin, CheckCircle, XCircle, Loader2, X, Search, Save, LocateFixed } from 'lucide-react';
@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import { apiCache } from '../lib/apiCache';
 
 // Fix Leaflet marker icons
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
@@ -50,23 +51,21 @@ export default function AdminVendors() {
 
   const markerRef = useRef<any>(null);
 
-  useEffect(() => {
-    console.log("[DEBUG] Current URL:", window.location.href);
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
     setLoading(true);
     try {
       console.log("[DEBUG] Fetching vendors from: /api/admin/vendors");
       const [vendorsRes, areasRes] = await Promise.all([
-        fetch('/api/admin/vendors', {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          cache: 'no-store'
-        }).then(async res => {
+        apiCache.fetchOnce<any[]>('admin_vendors', async (fetchSignal) => {
+          const res = await fetch('/api/admin/vendors', {
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            cache: 'no-store',
+            signal: fetchSignal
+          });
+          
           console.log(`[DEBUG] Vendors API Status: ${res.status}`);
           const contentType = res.headers.get("content-type");
           
@@ -84,36 +83,48 @@ export default function AdminVendors() {
           if (!contentType || !contentType.includes("application/json")) {
             const body = await res.text();
             console.error("[DEBUG] Invalid Content-Type. Expected JSON but got:", contentType, "Body snippet:", body.slice(0, 100));
-            throw new Error(`Invalid response format: Expected JSON but got ${contentType || 'unknown'}. This usually means the API route is 404 and falling back to HTML.`);
+            throw new Error(`Invalid response format: Expected JSON but got ${contentType || 'unknown'}.`);
           }
 
           const json = await res.json();
           console.log('[DEBUG] Vendors API JSON Success:', json);
           return json;
-        }),
-        supabase.from('service_areas').select('*').eq('is_active', true).order('name')
+        }, { forceRefetch, signal }),
+        apiCache.fetchOnce<any[]>('admin_service_areas_active', async () => {
+          const { data, error } = await supabase.from('service_areas').select('*').eq('is_active', true).order('name');
+          if (error) throw error;
+          return data || [];
+        }, { forceRefetch })
       ]);
       
       if (Array.isArray(vendorsRes)) {
         const uniqueVendors = Array.from(new Map(vendorsRes.filter(v => v && v.id).map((v: any) => [v.id, v])).values());
         setVendors(uniqueVendors);
       } else {
-        console.error('Vendors fetch error:', vendorsRes);
+        console.error('Vendors fetch error: Invalid response format');
         toast.error('Failed to load vendors: Invalid response format');
       }
 
-      if (areasRes.error) {
-        console.error('Areas fetch error:', areasRes.error);
-      } else {
-        setAreas(areasRes.data || []);
-      }
+      setAreas(areasRes);
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log("[AdminVendors] Fetch aborted.");
+        return;
+      }
       console.error('FetchData catch error:', err);
       toast.error('Failed to load vendors: ' + err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(false, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [fetchData]);
 
   const handleLocationChange = async (lat: number, lng: number) => {
     setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
@@ -121,7 +132,7 @@ export default function AdminVendors() {
     // Reverse Geocode
     setGeocoding(true);
     try {
-      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+      const res = await fetch(`/api/geocode/reverse?lat=${lat}&lng=${lng}`);
       const text = await res.text();
       console.log("Raw Nominatim response:", text);
 
@@ -213,9 +224,10 @@ export default function AdminVendors() {
 
       if (!response.ok) throw new Error(result.error || 'Failed to add vendor');
 
+      apiCache.invalidate('admin_vendors');
       toast.success('Vendor added and account created successfully');
       setIsAddModalOpen(false);
-      fetchData();
+      fetchData(true);
       setFormData({ 
         email: '', 
         password: '', 
@@ -243,6 +255,7 @@ export default function AdminVendors() {
     if (error) {
       toast.error('Failed to update status');
     } else {
+      apiCache.invalidate('admin_vendors');
       toast.success('Vendor status updated');
       setVendors(vendors.map(v => v.id === vendorId ? { ...v, is_active: !currentStatus } : v));
     }

@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { ServiceableArea } from '../types';
 import { Truck, UserPlus, MapPin, CheckCircle, XCircle, Loader2, X, Bike, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiCache } from '../lib/apiCache';
 
 import { LocationPicker } from '../components/LocationPicker';
 
@@ -24,20 +25,18 @@ export default function AdminDeliveryBoys() {
     is_active: true
   });
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
     try {
       const [boysRes, areasRes] = await Promise.all([
-        fetch('/api/admin/delivery-boys', {
-          headers: {
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          cache: 'no-store'
-        }).then(async res => {
+        apiCache.fetchOnce<any[]>('admin_delivery_boys', async (fetchSignal) => {
+          const res = await fetch('/api/admin/delivery-boys', {
+            headers: {
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            cache: 'no-store',
+            signal: fetchSignal
+          });
           console.log(`Boys API status: ${res.status}`);
           if (!res.ok) {
             const text = await res.text();
@@ -47,30 +46,42 @@ export default function AdminDeliveryBoys() {
           const json = await res.json();
           console.log('Boys API JSON:', json);
           return json;
-        }),
-        supabase.from('service_areas').select('*').eq('is_active', true).order('name')
+        }, { forceRefetch, signal }),
+        apiCache.fetchOnce<any[]>('admin_service_areas_active', async () => {
+          const { data, error } = await supabase.from('service_areas').select('*').eq('is_active', true).order('name');
+          if (error) throw error;
+          return data || [];
+        }, { forceRefetch })
       ]);
       
       if (Array.isArray(boysRes)) {
         const uniqueBoys = Array.from(new Map(boysRes.filter(b => b && b.id).map((b: any) => [b.id, b])).values());
         setBoys(uniqueBoys);
       } else {
-        console.error('Delivery boys fetch error:', boysRes);
+        console.error('Delivery boys fetch error: Invalid response format');
         toast.error('Failed to load partners: Invalid response format');
       }
 
-      if (areasRes.error) {
-        console.error('Areas fetch error:', areasRes.error);
-      } else {
-        setAreas(areasRes.data || []);
-      }
+      setAreas(areasRes);
     } catch (err: any) {
+      if (err.name === 'AbortError') {
+        console.log("[AdminDeliveryBoys] Fetch aborted.");
+        return;
+      }
       console.error('FetchData catch error:', err);
       toast.error('Failed to load data: ' + err.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(false, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [fetchData]);
 
   const handleAddBoy = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -99,9 +110,10 @@ export default function AdminDeliveryBoys() {
 
       if (!response.ok) throw new Error(result.error || 'Registration failed');
 
+      apiCache.invalidate('admin_delivery_boys');
       toast.success('Delivery partner registered and account created');
       setIsAddModalOpen(false);
-      fetchData();
+      fetchData(true);
       setFormData({ email: '', password: '', full_name: '', phone: '', vehicle_type: 'BIKE', service_area_id: '', is_active: true });
     } catch (err: any) {
       toast.error(err.message || 'Registration failed');
@@ -131,6 +143,7 @@ export default function AdminDeliveryBoys() {
     if (error) {
       toast.error('Failed to update status');
     } else {
+      apiCache.invalidate('admin_delivery_boys');
       toast.success('Status updated');
       setBoys(boys.map(b => b.id === id ? { ...b, is_active: !currentStatus } : b));
     }

@@ -1,16 +1,22 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from './lib/supabase';
 import { Profile } from './types';
 import { User } from '@supabase/supabase-js';
+import { apiCache } from './lib/apiCache';
 
 interface AuthContextType {
   user: User | null;
   profile: Profile | null;
+  role: string | null;
   loading: boolean;
+  isLoadingAuth: boolean;
   isAdmin: boolean;
   isVendor: boolean;
   isDelivery: boolean;
+  isCustomer: boolean;
   signOut: () => Promise<void>;
+  refreshProfile: () => Promise<void>;
+  setSessionAndProfile: (user: User, profile: any) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,87 +24,182 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  // Helper to fetch user profiles with caching and deduplication
+  const fetchProfileDirect = async (userId: string, force = false): Promise<Profile | null> => {
+    try {
+      console.log(`[AuthContext] Querying public.users. Fetching UUID: ${userId}`);
+      return await apiCache.fetchOnce<Profile | null>(`profile_${userId}`, async () => {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (error) {
+          console.error("[AuthContext] Error retrieving user profile from public.users:", error.message);
+          return null;
+        }
+        
+        return data as Profile;
+      }, { forceRefetch: force });
+    } catch (err) {
+      console.error("[AuthContext] Exception while retrieving user profile from public.users:", err);
+      return null;
+    }
+  };
+
+  const initRef = useRef(false);
 
   useEffect(() => {
-    // Check active sessions and subscribe to auth changes
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id, session.user);
-      else setLoading(false);
-    });
+    let active = true;
+    let subscription: any = null;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) fetchProfile(session.user.id, session.user);
-      else {
-        setProfile(null);
-        setLoading(false);
+    if (initRef.current) return;
+    initRef.current = true;
+
+    const initializeAuth = async () => {
+      setLoading(true);
+      try {
+        console.log("[AuthContext] Setting up initial session and profile...");
+        const { data, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error("[AuthContext] getSession returned an auth error:", error);
+        }
+
+        if (!active) return;
+
+        const session = data?.session;
+        if (session?.user) {
+          setUser(session.user);
+          const dbProfile = await fetchProfileDirect(session.user.id);
+          if (active) {
+            setProfile(dbProfile);
+          }
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error("[AuthContext] Exception caught during setupAuthAndProfile:", err);
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
       }
-    });
 
-    return () => subscription.unsubscribe();
+      // ONLY set up the auth state listener AFTER getting the initial session,
+      // and guard it so it doesn't query the profile if the session user is the same.
+      const { data: { subscription: sub } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        console.log(`[AuthContext] onAuthStateChange Detected Event: "${event}"`);
+        if (!active) return;
+
+        try {
+          if (session?.user) {
+            setUser(prevUser => {
+              if (prevUser?.id === session.user.id) {
+                // No change, return same user
+                return prevUser;
+              }
+              
+              // Only load profile if user is different
+              setLoading(true);
+              fetchProfileDirect(session.user.id).then((dbProfile) => {
+                if (active) {
+                  setProfile(dbProfile);
+                  setLoading(false);
+                }
+              });
+              
+              return session.user;
+            });
+          } else {
+            setUser(null);
+            setProfile(null);
+            setLoading(false);
+          }
+        } catch (err) {
+          console.error("[AuthContext] Exception in onAuthStateChange:", err);
+          if (active) setLoading(false);
+        }
+      });
+      subscription = sub;
+    };
+
+    initializeAuth();
+
+    return () => {
+      active = false;
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    };
   }, []);
 
-  const fetchProfile = async (userId: string, authUser?: User) => {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (data) {
-        setProfile(data);
-        setLoading(false);
-      } else {
-        // If profile doesn't exist in 'users' table, create it
-        // This handles cases where signup insert failed or third-party auth was used
-        const name = authUser?.user_metadata?.name || authUser?.user_metadata?.full_name || 'Vexokart User';
-        const email = authUser?.email || '';
-        
-        const { data: newProfile, error: insertError } = await supabase
-          .from('users')
-          .insert([{ 
-            id: userId, 
-            email, 
-            name, 
-            role: 'user' 
-          }])
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Error creating profile:', insertError);
-          // Still set a temporary profile from auth data to avoid "Vexokart User" if we have metadata
-          setProfile({
-            id: userId,
-            email,
-            name,
-            role: 'user',
-            created_at: new Date().toISOString()
-          });
-        } else {
-          setProfile(newProfile);
-        }
+  const refreshProfile = async () => {
+    if (user) {
+      setLoading(true);
+      try {
+        const fresh = await fetchProfileDirect(user.id, true);
+        setProfile(fresh);
+        console.log("Database Profile (Refresh):", fresh);
+        console.log("Database Role (Refresh):", fresh?.role || null);
+      } catch (err) {
+        console.error("[AuthContext] Failed to refresh profile:", err);
+      } finally {
         setLoading(false);
       }
-    } catch (error) {
-      console.error('Error fetching profile:', error);
-      setLoading(false);
     }
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    console.log("[AuthContext] SignOut requested. Clearing all stored credentials and context.");
+    apiCache.clearAll();
+    setUser(null);
+    setProfile(null);
+    setLoading(false);
+    
+    // Clear all localStorage and sessionStorage caches
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.warn("Supabase auth signOut failed, ignored:", e);
+    }
   };
 
-  const isAdmin = profile?.role === 'admin';
-  const isVendor = profile?.role === 'vendor';
-  const isDelivery = profile?.role === 'delivery';
+  const setSessionAndProfile = (newUser: User, newProfile: any) => {
+    console.log("[AuthContext] Direct synchronous state update for User ID:", newUser.id);
+    setUser(newUser);
+    setProfile(newProfile);
+    console.log("Database Profile:", newProfile);
+    console.log("Database Role:", newProfile?.role || null);
+  };
+
+  const role = profile?.role || null;
+  const isAdmin = role === 'admin';
+  const isVendor = role === 'vendor';
+  const isDelivery = role === 'delivery';
+  const isCustomer = role === 'customer' || role === 'user';
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isAdmin, isVendor, isDelivery, signOut }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      profile, 
+      role,
+      loading, 
+      isLoadingAuth: loading, 
+      isAdmin, 
+      isVendor, 
+      isDelivery, 
+      isCustomer, 
+      signOut,
+      refreshProfile,
+      setSessionAndProfile
+    }}>
       {children}
     </AuthContext.Provider>
   );

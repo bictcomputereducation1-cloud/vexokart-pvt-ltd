@@ -92,7 +92,7 @@ export default function AdminCategories() {
             <DialogHeader>
               <DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
             </DialogHeader>
-            <form onSubmit={handleSave} className="space-y-4 pt-4">
+            <form key={editingCategory?.id || 'new'} onSubmit={handleSave} className="space-y-4 pt-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">Category Name</label>
                 <Input name="name" defaultValue={editingCategory?.name || ''} required />

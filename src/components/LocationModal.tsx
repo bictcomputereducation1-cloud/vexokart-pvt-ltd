@@ -31,7 +31,7 @@ export const LocationModal: React.FC<{ isOpen: boolean; onClose: () => void }> =
     setValidating(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchQuery)}&limit=1`
+        `/api/geocode/search?q=${encodeURIComponent(searchQuery)}`
       );
       
       const text = await response.text();

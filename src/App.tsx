@@ -1,48 +1,57 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { CartProvider } from './CartContext';
 import { AuthProvider } from './AuthContext';
 import { LocationProvider } from './LocationContext';
 import { ProtectedRoute } from './ProtectedRoute';
+import FallbackSkeleton from './components/FallbackSkeleton';
 
-// Pages
-import Home from './pages/Home';
-import Categories from './pages/Categories';
-import Login from './pages/Login';
-import Signup from './pages/Signup';
-import ProductDetail from './pages/ProductDetail';
-import Cart from './pages/Cart';
-import Checkout from './pages/Checkout';
-import Orders from './pages/Orders';
-import Profile from './pages/Profile';
-import Search from './pages/Search';
-import CategoryProducts from './pages/CategoryProducts';
-import OrderSuccess from './pages/OrderSuccess';
-import Onboarding from './pages/Onboarding';
-import Splash from './pages/Splash';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminProducts from './pages/AdminProducts';
-import AdminOrders from './pages/AdminOrders';
-import AdminCategories from './pages/AdminCategories';
-import AdminSubcategories from './pages/AdminSubcategories';
-import AdminCoupons from './pages/AdminCoupons';
-import AdminSettings from './pages/AdminSettings';
-import AdminVendors from './pages/AdminVendors';
-import AdminDeliveryBoys from './pages/AdminDeliveryBoys';
-import AdminAreas from './pages/AdminAreas';
-import AdminBanners from './pages/AdminBanners';
-import VendorDashboard from './pages/VendorDashboard';
-import VendorProductUpload from './pages/VendorProductUpload';
-import VendorPrintLabel from './pages/VendorPrintLabel';
-import DeliveryDashboard from './pages/DeliveryDashboard';
+// Lazy static routes
+const Splash = lazy(() => import('./pages/Splash'));
+const Home = lazy(() => import('./pages/Home'));
+const Categories = lazy(() => import('./pages/Categories'));
+const Login = lazy(() => import('./pages/Login'));
+const Signup = lazy(() => import('./pages/Signup'));
+const ProductDetail = lazy(() => import('./pages/ProductDetail'));
+const Cart = lazy(() => import('./pages/Cart'));
+const Checkout = lazy(() => import('./pages/Checkout'));
+const Orders = lazy(() => import('./pages/Orders'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Search = lazy(() => import('./pages/Search'));
+const CategoryProducts = lazy(() => import('./pages/CategoryProducts'));
+const OrderSuccess = lazy(() => import('./pages/OrderSuccess'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+
+// Lazy admin routes
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminProducts = lazy(() => import('./pages/AdminProducts'));
+const AdminOrders = lazy(() => import('./pages/AdminOrders'));
+const AdminCategories = lazy(() => import('./pages/AdminCategories'));
+const AdminSubcategories = lazy(() => import('./pages/AdminSubcategories'));
+const AdminCoupons = lazy(() => import('./pages/AdminCoupons'));
+const AdminSettings = lazy(() => import('./pages/AdminSettings'));
+const AdminVendors = lazy(() => import('./pages/AdminVendors'));
+const AdminDeliveryBoys = lazy(() => import('./pages/AdminDeliveryBoys'));
+const AdminAreas = lazy(() => import('./pages/AdminAreas'));
+const AdminBanners = lazy(() => import('./pages/AdminBanners'));
+const AdminPayouts = lazy(() => import('./pages/AdminPayouts'));
+
+// Lazy vendor routes
+const VendorDashboard = lazy(() => import('./pages/VendorDashboard'));
+const VendorProductUpload = lazy(() => import('./pages/VendorProductUpload'));
+const VendorPrintLabel = lazy(() => import('./pages/VendorPrintLabel'));
+
+// Lazy delivery routes
+const DeliveryDashboard = lazy(() => import('./pages/DeliveryDashboard'));
+
 import { AdminLayout } from './components/AdminLayout';
 import { VendorLayout } from './components/VendorLayout';
 import { DeliveryLayout } from './components/DeliveryLayout';
 
 export default function App() {
   React.useEffect(() => {
-    console.log("[DEBUG] Current Location:", window.location.href);
+    // Silence unnecessary verbose devlogs
   }, []);
 
   return (
@@ -51,44 +60,48 @@ export default function App() {
         <CartProvider>
           <Router>
             <Layout>
-              <Routes>
-                <Route path="/" element={<Splash />} />
-                <Route path="/home" element={<Home />} />
-                <Route path="/onboarding" element={<Onboarding />} />
-                <Route path="/categories" element={<Categories />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/signup" element={<Signup />} />
-                <Route path="/product/:id" element={<ProductDetail />} />
-                <Route path="/cart" element={<Cart />} />
-                <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
-                <Route path="/order-success/:id" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
-                <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
-                <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                <Route path="/search" element={<Search />} />
-                <Route path="/category/:identifier" element={<CategoryProducts />} />
-                
-                {/* Admin Routes */}
-                <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/vendors" element={<ProtectedRoute adminOnly><AdminLayout><AdminVendors /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/delivery-boys" element={<ProtectedRoute adminOnly><AdminLayout><AdminDeliveryBoys /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/areas" element={<ProtectedRoute adminOnly><AdminLayout><AdminAreas /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/banners" element={<ProtectedRoute adminOnly><AdminLayout><AdminBanners /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminLayout><AdminProducts /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><AdminOrders /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminLayout><AdminCategories /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/subcategories" element={<ProtectedRoute adminOnly><AdminLayout><AdminSubcategories /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/coupons" element={<ProtectedRoute adminOnly><AdminLayout><AdminCoupons /></AdminLayout></ProtectedRoute>} />
-                <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminLayout><AdminSettings /></AdminLayout></ProtectedRoute>} />
-                
-                {/* Vendor Routes */}
-                <Route path="/vendor" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
-                <Route path="/vendor/dashboard" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
-                <Route path="/vendor/products/new" element={<ProtectedRoute vendorOnly><VendorProductUpload /></ProtectedRoute>} />
-                <Route path="/vendor/print/:id" element={<ProtectedRoute vendorOnly><VendorPrintLabel /></ProtectedRoute>} />
-                
-                {/* Delivery Route */}
-                <Route path="/delivery/dashboard" element={<ProtectedRoute deliveryOnly><DeliveryLayout><DeliveryDashboard /></DeliveryLayout></ProtectedRoute>} />
-              </Routes>
+              <Suspense fallback={<FallbackSkeleton />}>
+                <Routes>
+                  <Route path="/" element={<Splash />} />
+                  <Route path="/home" element={<Home />} />
+                  <Route path="/onboarding" element={<Onboarding />} />
+                  <Route path="/categories" element={<Categories />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/signup" element={<Signup />} />
+                  <Route path="/product/:id" element={<ProductDetail />} />
+                  <Route path="/cart" element={<Cart />} />
+                  <Route path="/checkout" element={<ProtectedRoute><Checkout /></ProtectedRoute>} />
+                  <Route path="/order-success/:id" element={<ProtectedRoute><OrderSuccess /></ProtectedRoute>} />
+                  <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+                  <Route path="/account" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                  <Route path="/search" element={<Search />} />
+                  <Route path="/category/:pointer" element={<CategoryProducts />} />
+                  
+                  {/* Admin Routes */}
+                  <Route path="/admin" element={<ProtectedRoute adminOnly><AdminLayout><AdminDashboard /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/vendors" element={<ProtectedRoute adminOnly><AdminLayout><AdminVendors /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/delivery-boys" element={<ProtectedRoute adminOnly><AdminLayout><AdminDeliveryBoys /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/areas" element={<ProtectedRoute adminOnly><AdminLayout><AdminAreas /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/banners" element={<ProtectedRoute adminOnly><AdminLayout><AdminBanners /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/products" element={<ProtectedRoute adminOnly><AdminLayout><AdminProducts /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/orders" element={<ProtectedRoute adminOnly><AdminLayout><AdminOrders /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/categories" element={<ProtectedRoute adminOnly><AdminLayout><AdminCategories /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/subcategories" element={<ProtectedRoute adminOnly><AdminLayout><AdminSubcategories /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/coupons" element={<ProtectedRoute adminOnly><AdminLayout><AdminCoupons /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/settings" element={<ProtectedRoute adminOnly><AdminLayout><AdminSettings /></AdminLayout></ProtectedRoute>} />
+                  <Route path="/admin/payouts" element={<ProtectedRoute adminOnly><AdminLayout><AdminPayouts /></AdminLayout></ProtectedRoute>} />
+                  
+                  {/* Vendor Routes */}
+                  <Route path="/vendor" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
+                  <Route path="/vendor/dashboard" element={<ProtectedRoute vendorOnly><VendorLayout><VendorDashboard /></VendorLayout></ProtectedRoute>} />
+                  <Route path="/vendor/products/new" element={<ProtectedRoute vendorOnly><VendorProductUpload /></ProtectedRoute>} />
+                  <Route path="/vendor/print/:id" element={<ProtectedRoute vendorOnly><VendorPrintLabel /></ProtectedRoute>} />
+                  
+                  {/* Delivery Route */}
+                  <Route path="/delivery" element={<ProtectedRoute deliveryOnly><DeliveryLayout><DeliveryDashboard /></DeliveryLayout></ProtectedRoute>} />
+                  <Route path="/delivery/dashboard" element={<ProtectedRoute deliveryOnly><DeliveryLayout><DeliveryDashboard /></DeliveryLayout></ProtectedRoute>} />
+                </Routes>
+              </Suspense>
             </Layout>
           </Router>
         </CartProvider>

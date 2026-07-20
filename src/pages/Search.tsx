@@ -41,7 +41,9 @@ export default function Search() {
         .limit(20);
 
       if (error) throw error;
-      setProducts(data || []);
+      const getStock = (p: any) => typeof p.stock_units === 'number' ? p.stock_units : (p.stock !== undefined ? p.stock : 0);
+      const sortedData = (data || []).sort((a, b) => (getStock(a) > 0 ? 0 : 1) - (getStock(b) > 0 ? 0 : 1));
+      setProducts(sortedData);
     } catch (error) {
       console.error('Search error:', error);
     } finally {

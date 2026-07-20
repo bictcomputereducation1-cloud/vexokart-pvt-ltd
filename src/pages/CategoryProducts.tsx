@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Product, Category, Subcategory } from '../types';
+import { fetchLiveAndInStockProducts } from '../lib/productFetcher';
+import { MOCK_CATEGORIES, MOCK_SUBCATEGORIES } from '../lib/defaultData';
 import { 
   ArrowLeft, 
   Search, 
@@ -43,28 +45,63 @@ export default function CategoryProducts() {
     }
   }, [category?.id, selectedSubId]);
 
+  useEffect(() => {
+    if (!category?.id) return;
+
+    // 8. Ensure products inserted by vendors appear instantly in customer app.
+    // 10. Add realtime refresh after product insert.
+    console.log("[DEBUG] Subscribing to realtime products table changes for category page...");
+    const productsChannel = supabase
+      .channel('products-realtime-category')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'products' },
+        (payload) => {
+          console.log("[DEBUG] Realtime product update detected! Reloading category products...", payload);
+          fetchProducts();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(productsChannel);
+    };
+  }, [category?.id]);
+
   const fetchCategory = async () => {
     setLoading(true);
     try {
       let categoryData = null;
       
-      const { data: catBySlug } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('slug', identifier)
-        .maybeSingle();
-      
-      if (catBySlug) {
-        categoryData = catBySlug;
-      } else {
-        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-        if (uuidRegex.test(identifier!)) {
-          const { data: catById } = await supabase
-            .from('categories')
-            .select('*')
-            .eq('id', identifier)
-            .maybeSingle();
-          categoryData = catById;
+      try {
+        const { data: catBySlug } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('slug', identifier)
+          .maybeSingle();
+        
+        if (catBySlug) {
+          categoryData = catBySlug;
+        } else {
+          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+          if (uuidRegex.test(identifier!)) {
+            const { data: catById } = await supabase
+              .from('categories')
+              .select('*')
+              .eq('id', identifier)
+              .maybeSingle();
+            categoryData = catById;
+          }
+        }
+      } catch (dbErr) {
+        console.warn("[CategoryProducts] Database query failed, checking fallbacks next:", dbErr);
+      }
+
+      if (!categoryData) {
+        // Search in local mock categories
+        const foundLocal = MOCK_CATEGORIES.find(c => c.slug === identifier || c.id === identifier);
+        if (foundLocal) {
+          categoryData = foundLocal;
         }
       }
 
@@ -72,13 +109,23 @@ export default function CategoryProducts() {
         setCategory(categoryData);
         
         // Fetch Subcategories once per category
-        const { data: subData } = await supabase
-          .from('subcategories')
-          .select('*')
-          .eq('category_id', categoryData.id)
-          .order('name');
-        
-        if (subData) setSubcategories(subData);
+        let subs: Subcategory[] = [];
+        try {
+          const { data: subData } = await supabase
+            .from('subcategories')
+            .select('*')
+            .eq('category_id', categoryData.id)
+            .order('name');
+          
+          if (subData && subData.length > 0) {
+            subs = subData;
+          } else {
+            subs = MOCK_SUBCATEGORIES.filter(s => s.category_id === categoryData!.id);
+          }
+        } catch {
+          subs = MOCK_SUBCATEGORIES.filter(s => s.category_id === categoryData!.id);
+        }
+        setSubcategories(subs);
       } else {
         toast.error('Category not found');
       }
@@ -94,21 +141,15 @@ export default function CategoryProducts() {
     if (!category?.id) return;
     setProductsLoading(true);
     try {
-      let query = supabase
-        .from('products')
-        .select('*')
-        .eq('category_id', category.id);
-      
-      if (selectedSubId !== 'all') {
-        query = query.eq('subcategory_id', selectedSubId);
-      }
-
-      const { data, error } = await query.order('name');
-      
-      if (error) throw error;
-      if (data) setProducts(data);
+      // 5/6. Safe manual merged fetch
+      const data = await fetchLiveAndInStockProducts({
+        categoryId: category.id,
+        subcategoryId: selectedSubId
+      });
+      setProducts(data);
     } catch (err) {
-      console.error('Error fetching products:', err);
+      // 3. Show error in console if API fails
+      console.error('[API FAIL - fetchProducts in CategoryProducts]: Failed to fetch products for category', err);
       toast.error('Failed to update products');
     } finally {
       setProductsLoading(false);
@@ -251,8 +292,8 @@ export default function CategoryProducts() {
                   <TrendingUp className="h-8 w-8 text-slate-200" />
                </div>
                <div>
-                  <h3 className="text-base font-black text-slate-800">No products found</h3>
-                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">In this subcategory</p>
+                  <h3 className="text-base font-black text-slate-800">No products available</h3>
+                  <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">In this category section</p>
                </div>
             </div>
           )}

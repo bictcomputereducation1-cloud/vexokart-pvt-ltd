@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Order } from '../types';
 import { Button } from '../components/ui/button';
@@ -10,6 +10,7 @@ import { ShoppingBag, Eye, Search, Download, Loader2 } from 'lucide-react';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { generateInvoice } from '../lib/invoiceService';
+import { apiCache } from '../lib/apiCache';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -18,48 +19,60 @@ export default function AdminOrders() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [generatingInvoiceId, setGeneratingInvoiceId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchOrders();
-  }, []);
-
-  const fetchOrders = async () => {
+  const fetchOrders = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
     setLoading(true);
     try {
       console.log("[DEBUG] Fetching admin orders from: /api/admin/orders");
-      const response = await fetch('/api/admin/orders', {
-        headers: { 'Accept': 'application/json' }
-      });
-      
-      console.log(`[DEBUG] Orders API Status: ${response.status}`);
-      const contentType = response.headers.get("content-type");
+      const data = await apiCache.fetchOnce<Order[]>('admin_orders', async (fetchSignal) => {
+        const response = await fetch('/api/admin/orders', {
+          headers: { 'Accept': 'application/json' },
+          signal: fetchSignal
+        });
+        
+        console.log(`[DEBUG] Orders API Status: ${response.status}`);
+        const contentType = response.headers.get("content-type");
 
-      if (!response.ok) {
-        let errorText = "";
-        try { errorText = await response.text(); } catch(e) {}
-        console.error("[DEBUG] Orders API Error:", errorText);
-        throw new Error(`API Error (${response.status}): ${errorText.slice(0, 100)}`);
-      }
+        if (!response.ok) {
+          let errorText = "";
+          try { errorText = await response.text(); } catch(e) {}
+          console.error("[DEBUG] Orders API Error:", errorText);
+          throw new Error(`API Error (${response.status}): ${errorText.slice(0, 100)}`);
+        }
 
-      if (!contentType || !contentType.includes("application/json")) {
-        const body = await response.text();
-        console.error("[DEBUG] Invalid Content-Type for orders. Got:", contentType, "Body snippet:", body.slice(0, 100));
-        throw new Error(`Invalid response format: Expected JSON but got ${contentType}. This suggests a 404 falling back to HTML.`);
-      }
+        if (!contentType || !contentType.includes("application/json")) {
+          const body = await response.text();
+          console.error("[DEBUG] Invalid Content-Type for orders. Got:", contentType, "Body snippet:", body.slice(0, 100));
+          throw new Error(`Invalid response format: Expected JSON but got ${contentType}.`);
+        }
 
-      const data = await response.json();
-      console.log("[DEBUG] Orders Success:", data?.length, "orders found");
-      
+        const json = await response.json();
+        console.log("[DEBUG] Orders Success:", json?.length, "orders found");
+        return json;
+      }, { forceRefetch, signal });
+
       if (Array.isArray(data)) {
         const uniqueOrders = Array.from(new Map(data.filter(o => o && o.id).map((o: any) => [o.id, o])).values());
         setOrders(uniqueOrders as any);
       }
     } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log("[AdminOrders] Fetch aborted.");
+        return;
+      }
       console.error('Error fetching orders:', error);
       toast.error('Failed to load orders: ' + error.message);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchOrders(false, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [fetchOrders]);
 
   const updateStatus = async (order: Order, status: string) => {
     try {
@@ -94,7 +107,8 @@ export default function AdminOrders() {
         }
       }
 
-      fetchOrders();
+      apiCache.invalidate('admin_orders');
+      fetchOrders(true);
     } catch (error: any) {
       toast.error(error.message);
     }

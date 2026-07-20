@@ -6,6 +6,7 @@ import { Input } from '../components/ui/input';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card';
 import { toast } from 'sonner';
 import { LogIn, Loader2 } from 'lucide-react';
+import { useAuth } from '../AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -13,6 +14,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const { setSessionAndProfile } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -41,29 +43,55 @@ export default function Login() {
         }
         throw signInError;
       }
-      
-      toast.success('Logged in successfully!');
 
       if (data.user) {
-        // Fetch the user role
-        const { data: userData } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', data.user.id)
-          .maybeSingle();
+        console.log("Auth User:", data.user);
 
-        const role = userData?.role;
+        // Fetch user profile immediately after login - strictly from users table
+        const { data: profile, error: profileErr } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", data.user.id)
+          .single();
 
-        if (role === 'admin') {
-          navigate('/admin');
-          return;
-        } else if (role === 'vendor') {
-          navigate('/vendor');
-          return;
-        } else if (role === 'delivery') {
-          navigate('/delivery/dashboard');
+        console.log("Database Profile:", profile);
+
+        if (profileErr || !profile) {
+          console.error("Profile fetch error immediately after login:", profileErr);
+          setError("Role Missing");
+          toast.error("Role Missing");
+          setLoading(false);
           return;
         }
+
+        const role = profile.role;
+        console.log("Database Role:", role);
+
+        if (!role) {
+          console.error("User profile exists but has no role assigned.");
+          setError("Role Missing");
+          toast.error("Role Missing");
+          setLoading(false);
+          return;
+        }
+
+        // Store the complete profile in AuthContext
+        setSessionAndProfile(data.user, profile);
+        toast.success('Logged in successfully!');
+
+        // Determine destination and navigate exactly as requested
+        let destination = "/";
+        if (role === "admin") {
+          destination = "/admin";
+        } else if (role === "vendor") {
+          destination = "/vendor";
+        } else if (role === "delivery") {
+          destination = "/delivery";
+        }
+
+        console.log("Navigation:", destination);
+        navigate(destination);
+        return;
       }
 
       navigate('/');
@@ -88,8 +116,12 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="relative z-20">
           <CardContent className="space-y-4">
             {error && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-md">
-                {error}
+              <div className="p-3 bg-red-50 border border-red-200 text-red-600 text-sm rounded-md font-semibold text-center">
+                {error === "Role Missing" ? (
+                  <span className="text-red-700 font-bold tracking-wide block">Role Missing</span>
+                ) : (
+                  error
+                )}
               </div>
             )}
             <div className="space-y-2">

@@ -1,4 +1,4 @@
-export type Role = 'user' | 'admin' | 'vendor';
+export type Role = 'user' | 'admin' | 'vendor' | 'customer' | 'delivery';
 
 export interface Profile {
   id: string;
@@ -6,6 +6,9 @@ export interface Profile {
   name: string | null;
   role: Role;
   created_at: string;
+  phone?: string | null;
+  active_address?: string | null;
+  image_url?: string | null;
 }
 
 export interface Category {
@@ -54,6 +57,9 @@ export interface Product {
   subcategory_id?: string | null;
   image_url: string | null;
   stock: number;
+  selling_price?: number | null;
+  mrp?: number | null;
+  stock_units?: number | null;
   cod_available: boolean;
   online_payment: boolean;
   created_at: string;
@@ -69,6 +75,7 @@ export interface Order {
   delivery_otp?: string | null;
   delivered_at?: string | null;
   status: string;
+  delivery_fee?: number | null;
   payment_method: 'cod' | 'online' | null;
   payment_status: 'pending' | 'paid' | 'failed';
   payment_id: string | null;

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Category } from '../types';
 import { motion } from 'motion/react';
+import { MOCK_CATEGORIES } from '../lib/defaultData';
 import { 
   Menu, 
   ShoppingCart, 
@@ -29,16 +30,49 @@ export default function Categories() {
   const { totalItems } = useCart();
 
   useEffect(() => {
-    fetchCategories();
+    try {
+      const cached = sessionStorage.getItem('VEXO_CATEGORIES_CACHE');
+      if (cached) {
+        setCategories(JSON.parse(cached));
+        setLoading(false);
+      }
+    } catch {}
+
+    const absoluteTimeout = setTimeout(() => {
+      console.warn("[Categories] Categories took too long to load from DB. Forcing loading = false...");
+      setLoading(false);
+    }, 2800);
+
+    fetchCategories().finally(() => {
+      clearTimeout(absoluteTimeout);
+    });
+
+    return () => {
+      clearTimeout(absoluteTimeout);
+    };
   }, []);
 
   const fetchCategories = async () => {
     try {
-      const { data, error } = await supabase.from('categories').select('*').order('name');
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, name, image_url, slug, display_order')
+        .order('name');
       if (error) throw error;
-      setCategories(data || []);
+      if (data && data.length > 0) {
+        setCategories(data);
+        try {
+          sessionStorage.setItem('VEXO_CATEGORIES_CACHE', JSON.stringify(data));
+        } catch {}
+      } else {
+        setCategories(MOCK_CATEGORIES);
+        try {
+          sessionStorage.setItem('VEXO_CATEGORIES_CACHE', JSON.stringify(MOCK_CATEGORIES));
+        } catch {}
+      }
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      console.error("[Categories] Failed to fetch categories, using fallbacks:", error);
+      setCategories(MOCK_CATEGORIES);
     } finally {
       setLoading(false);
     }

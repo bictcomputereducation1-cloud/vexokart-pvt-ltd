@@ -12,7 +12,7 @@ interface ProductCardProps {
   product: Product;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
+export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
   const { addToCart, items } = useCart();
   const { isServiceable, pincode, setIsModalOpen } = useDeliveryLocation();
   const { user } = useAuth();
@@ -24,12 +24,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
   const reviews = Math.floor(Math.random() * 5000) + 1000;
   const reviewsFormatted = reviews >= 1000 ? `${(reviews / 1000).toFixed(1)}K` : reviews;
 
-  const hasDiscount = product.original_price && product.original_price > product.price;
-  const discountPercent = hasDiscount ? Math.round(((product.original_price! - product.price) / product.original_price!) * 100) : 0;
+  const stock_units = typeof product.stock_units === 'number' ? product.stock_units : (product.stock !== undefined ? product.stock : 0);
+  const selling_price = typeof product.selling_price === 'number' ? product.selling_price : product.price;
+  const mrp = typeof product.mrp === 'number' ? product.mrp : product.original_price;
+
+  const hasDiscount = mrp && mrp > selling_price && selling_price > 0;
+  const discountPercent = hasDiscount ? Math.round(((mrp - selling_price) / mrp) * 100) : 0;
+  const isOutOfStock = stock_units <= 0;
+  const isPriceUnavailable = !selling_price || selling_price <= 0;
 
   const handleAddClick = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    
+    if (isOutOfStock || isPriceUnavailable) return;
     
     if (!user) {
       navigate('/login');
@@ -52,10 +60,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
     <motion.div
       whileHover={user ? { y: -4 } : {}}
       transition={{ duration: 0.2 }}
-      className="bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm flex flex-col h-full group transition-all duration-300 relative"
+      className={cn("bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm flex flex-col h-full group transition-all duration-300 relative", isOutOfStock && "opacity-60 grayscale-[0.2]")}
     >
       {/* 🔹 DISCOUNT BADGE */}
-      {hasDiscount && (
+      {hasDiscount && !isOutOfStock && (
         <div className="absolute top-0 left-0 bg-[#C49B3B] text-white text-[9px] font-black px-2 py-3 rounded-br-[1.2rem] rounded-tl-[1.8rem] z-10 flex flex-col items-center">
           <span>{discountPercent}%</span>
           <span className="text-[7px]">OFF</span>
@@ -76,9 +84,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
 
       {/* 🔹 PRODUCT IMAGE */}
       <Link 
-        to={user ? `/product/${product.id}` : '#'} 
-        onClick={(e) => !user && handleAddClick(e)}
-        className={`block relative aspect-square overflow-hidden bg-white p-4 ${!user ? 'cursor-default' : ''}`}
+        to={user && !isOutOfStock ? `/product/${product.id}` : '#'} 
+        onClick={(e) => (!user || isOutOfStock) && handleAddClick(e)}
+        className={`block relative aspect-square overflow-hidden bg-white p-4 ${!user || isOutOfStock ? 'cursor-default' : ''}`}
       >
         <img
           src={product.image_url || `https://picsum.photos/seed/${product.name}/400/400`}
@@ -87,13 +95,13 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
           referrerPolicy="no-referrer"
         />
 
-        {product.stock <= 0 && (
+        {isOutOfStock && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center p-4 text-center pointer-events-none">
-            <span className="text-red-600 font-black text-[10px] uppercase tracking-widest border border-red-200 px-2 py-1 rounded-lg bg-white shadow-xl">Out of Stock</span>
+            <span className="text-slate-700 font-black text-[10px] uppercase tracking-widest border border-slate-200 px-2 py-1 rounded-lg bg-white shadow-xl">Out of Stock</span>
           </div>
         )}
 
-        {pincode && !isServiceable && (
+        {pincode && !isServiceable && !isOutOfStock && (
           <div className="absolute inset-0 bg-slate-50/40 backdrop-blur-[1px] flex items-center justify-center p-3 pointer-events-none">
             <div className="bg-white/90 border border-slate-200 px-2 py-1 rounded-lg shadow-sm flex items-center gap-1.5 overflow-hidden">
               <MapPinOff className="h-3 w-3 text-slate-400" />
@@ -104,11 +112,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
       </Link>
 
       <div className="px-4 pb-4 flex flex-col flex-grow">
-        <Link to={`/product/${product.id}`} className="block flex-grow space-y-1">
+        <Link to={isOutOfStock ? '#' : `/product/${product.id}`} onClick={(e) => isOutOfStock && e.preventDefault()} className="block flex-grow space-y-1">
           <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight min-h-[2.5rem]">
             {product.name}
           </h3>
-          <p className="text-[10px] font-medium text-slate-400">Original 2.25L</p>
+          <p className="text-[10px] font-medium text-slate-400">{product.brand || 'Original 2.25L'}</p>
           
           {/* 🔹 RATING */}
           <div className="flex items-center gap-1 py-1">
@@ -120,27 +128,45 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
         
         {/* 🔹 PRICE & ADD BUTTON */}
         <div className="mt-4 flex flex-col gap-3">
-          <div className="flex items-baseline gap-2">
-            <span className="text-lg font-black text-slate-900 leading-none">₹{product.price}</span>
-            {hasDiscount && (
-              <span className="text-[11px] text-slate-300 line-through font-bold">₹{product.original_price}</span>
+          <div className="flex flex-col gap-1 min-h-[40px] justify-end">
+            {!isOutOfStock && stock_units > 0 && stock_units < 5 && (
+              <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Only few left</span>
+            )}
+            {isPriceUnavailable ? (
+              <span className="text-xs font-bold text-slate-500">Price unavailable</span>
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <span className="text-lg font-black text-slate-900 leading-none">₹{selling_price}</span>
+                {hasDiscount && (
+                  <span className="text-[11px] text-slate-300 line-through font-bold">₹{mrp}</span>
+                )}
+              </div>
             )}
           </div>
           
           <button
             onClick={handleAddClick}
-            disabled={product.stock <= 0 || (!!pincode && !isServiceable)}
-            className="w-full h-11 bg-[#C49B3B] rounded-2xl flex items-center shadow-lg shadow-amber-900/10 hover:bg-slate-900 group/btn transition-all active:scale-95 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none overflow-hidden"
+            disabled={isOutOfStock || isPriceUnavailable || (!!pincode && !isServiceable)}
+            className={cn(
+              "w-full h-11 rounded-2xl flex items-center group/btn transition-all active:scale-95 overflow-hidden",
+              isOutOfStock 
+                ? "bg-slate-100 cursor-not-allowed" 
+                : "bg-[#C49B3B] shadow-lg shadow-amber-900/10 hover:bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none"
+            )}
           >
             <div className="flex-grow flex items-center justify-center pl-4">
-              <span className="text-[11px] font-black uppercase tracking-widest text-white">{isInCart ? 'View Cart' : 'ADD'}</span>
+              <span className={cn("text-[11px] font-black uppercase tracking-widest", isOutOfStock ? "text-slate-400" : "text-white")}>
+                {isOutOfStock ? 'UNAVAILABLE' : (isInCart ? 'View Cart' : 'ADD')}
+              </span>
             </div>
-            <div className="h-9 w-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-1 text-white">
-              <Plus className="h-5 w-5" />
-            </div>
+            {!isOutOfStock && (
+              <div className="h-9 w-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-1 text-white">
+                <Plus className="h-5 w-5" />
+              </div>
+            )}
           </button>
         </div>
       </div>
     </motion.div>
   );
-};
+});

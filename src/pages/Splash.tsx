@@ -9,26 +9,58 @@ export default function Splash() {
   const { user, profile, loading: authLoading, isAdmin, isVendor, isDelivery } = useAuth();
 
   useEffect(() => {
-    if (authLoading) return; // Wait for auth to finish loading before redirecting
+    // Print required console logs
+    console.log("Auth User:", user);
+    console.log("Database Profile:", profile);
+    console.log("Database Role:", profile?.role || null);
 
-    const timer = setTimeout(() => {
-      if (user) {
-        if (isAdmin) {
-          navigate('/admin', { replace: true });
-        } else if (isVendor) {
-          navigate('/vendor', { replace: true });
-        } else if (isDelivery) {
-          navigate('/delivery/dashboard', { replace: true });
-        } else {
-          navigate('/home', { replace: true });
+    // 1. Safe absolute fallback timer: if auth loading takes too long (> 3000ms), force a fallback to '/' or appropriate dashboard
+    const absoluteFallback = setTimeout(() => {
+      console.warn("[Splash] Splash screen took too long to load. Triggering safe fallback...");
+      if (user && profile) {
+        let destination = "/";
+        if (profile.role === "admin") {
+          destination = "/admin";
+        } else if (profile.role === "vendor") {
+          destination = "/vendor";
+        } else if (profile.role === "delivery") {
+          destination = "/delivery";
         }
-      } else {
+        console.log("Navigation:", destination);
+        navigate(destination, { replace: true });
+      } else if (!authLoading && !user) {
+        console.log("Navigation: /home");
         navigate('/home', { replace: true });
       }
-    }, 400);
+    }, 3000);
 
-    return () => clearTimeout(timer);
-  }, [navigate, authLoading, user, isAdmin, isVendor, isDelivery]);
+    // 2. Normal auth-complete route redirect
+    let timer: any = null;
+    if (!authLoading) {
+      timer = setTimeout(() => {
+        if (user && profile) {
+          let destination = "/";
+          if (profile.role === "admin") {
+            destination = "/admin";
+          } else if (profile.role === "vendor") {
+            destination = "/vendor";
+          } else if (profile.role === "delivery") {
+            destination = "/delivery";
+          }
+          console.log("Navigation:", destination);
+          navigate(destination, { replace: true });
+        } else if (!user) {
+          console.log("Navigation: /home");
+          navigate('/home', { replace: true });
+        }
+      }, 400);
+    }
+
+    return () => {
+      clearTimeout(absoluteFallback);
+      if (timer) clearTimeout(timer);
+    };
+  }, [navigate, authLoading, user, profile]);
 
   return (
     <motion.div 

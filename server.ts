@@ -1,15 +1,42 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
-import { fileURLToPath } from "url";
 import crypto from "crypto";
 import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
+import fs from "fs";
+import axios from "axios";
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const FIN_FILE = path.join(process.cwd(), "vendor_finances.json");
+
+function getFinData() {
+  if (!fs.existsSync(FIN_FILE)) {
+    const initial = {
+      wallets: {},
+      payouts: [],
+      earnings_ledger: []
+    };
+    fs.writeFileSync(FIN_FILE, JSON.stringify(initial, null, 2));
+    return initial;
+  }
+  try {
+    const raw = fs.readFileSync(FIN_FILE, "utf-8");
+    return JSON.parse(raw);
+  } catch (err) {
+    console.error("Error reading fin file, returning empty structure", err);
+    return { wallets: {}, payouts: [], earnings_ledger: [] };
+  }
+}
+
+function saveFinData(data: any) {
+  try {
+    fs.writeFileSync(FIN_FILE, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error("Error writing fin file", err);
+  }
+}
 
 // Helper to clean environment variables (removes quotes and whitespace)
 const cleanEnvVar = (value: string | undefined) => {
@@ -86,14 +113,19 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Disable development request logging unless process.env.VEXO_VERBOSE is set
   app.use((req, res, next) => {
-    console.log(`[REQUEST] ${new Date().toISOString()} ${req.method} ${req.url}`);
+    if (process.env.VEXO_VERBOSE) {
+      console.log(`[REQUEST] ${new Date().toISOString()} ${req.method} ${req.url}`);
+    }
     next();
   });
 
   // API Debug Logger
   app.all("/api/*", (req, res, next) => {
-    console.log(`[API-DEBUG] ${req.method} ${req.url}`);
+    if (process.env.VEXO_VERBOSE) {
+      console.log(`[API-DEBUG] ${req.method} ${req.url}`);
+    }
     next();
   });
 
@@ -274,6 +306,20 @@ async function startServer() {
       if (itemsError) {
         console.error("Items insertion error:", itemsError);
         throw itemsError;
+      }
+
+      for (const item of items) {
+        const { data: prod } = await supabase.from('products').select('stock, stock_units').eq('id', item.id).single();
+        if (prod) {
+          const currentStock = typeof prod.stock === 'number' ? prod.stock : 0;
+          const currentStockUnits = typeof prod.stock_units === 'number' ? prod.stock_units : currentStock;
+          const newStock = Math.max(0, currentStock - item.quantity);
+          const newStockUnits = Math.max(0, currentStockUnits - item.quantity);
+          await supabase.from('products').update({ 
+            stock: newStock,
+            stock_units: newStockUnits
+          }).eq('id', item.id);
+        }
       }
 
       return res.json({ success: true, message: "Order confirmed successfully", orderId: newOrder.id });
@@ -705,25 +751,109 @@ async function startServer() {
         return res.status(500).json({ error: error.message });
       }
 
-      // If status changed to delivered, update delivery boy commission
-      if (updateData.status === 'delivered' && data.delivery_boy_id) {
-        const commission = data.delivery_fee || 50; // Use delivery fee or default 50 as commission
-        
-        // 1. Fetch current commission
-        const { data: dboy } = await supabase
-          .from('delivery_boys')
-          .select('commission_balance')
-          .eq('id', data.delivery_boy_id)
-          .single();
-          
-        if (dboy) {
-          const newBalance = (dboy.commission_balance || 0) + commission;
-          await supabase
-            .from('delivery_boys')
-            .update({ commission_balance: newBalance })
-            .eq('id', data.delivery_boy_id);
+      // If status changed to delivered, update vendor wallet, ledger, and delivery boy commission
+      if (updateData.status === 'delivered') {
+        // 1. Process vendor wallet & earnings
+        if (data.vendor_id) {
+          try {
+            const finData = getFinData();
+            const vId = data.vendor_id;
             
-          console.log(`[SERVER] Added ₹${commission} commission. New balance: ₹${newBalance}`);
+            // Check if this order has already been processed for earnings to prevent duplicate credits
+            const alreadyProcessed = finData.earnings_ledger.some((e: any) => e.order_id === orderId);
+            if (!alreadyProcessed) {
+              const deliveryFee = Number(data.delivery_fee || 0);
+              const totalAmount = Number(data.total_amount || 0);
+              const subtotal = Math.max(0, totalAmount - deliveryFee);
+              const commissionPercent = 10; // 10% platform commission
+              const commission = Math.round(subtotal * (commissionPercent / 100) * 100) / 100;
+              const vendorEarnings = Math.round((subtotal - commission) * 100) / 100;
+
+              // Initialize wallet if not present
+              if (!finData.wallets[vId]) {
+                finData.wallets[vId] = {
+                  available_balance: 0,
+                  pending_earnings: 0,
+                  total_earnings: 0,
+                  last_payout: 0,
+                  settlement_status: "settled",
+                  bank_name: "State Bank of India",
+                  account_number: "******9281",
+                  ifsc_code: "SBIN0001234",
+                  holder_name: ""
+                };
+              }
+
+              const wallet = finData.wallets[vId];
+              wallet.available_balance = Math.round((wallet.available_balance + vendorEarnings) * 100) / 100;
+              wallet.total_earnings = Math.round((wallet.total_earnings + vendorEarnings) * 100) / 100;
+              wallet.settlement_status = "settled";
+
+              // Add earnings ledger entry
+              finData.earnings_ledger.push({
+                id: `ERN-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+                vendor_id: vId,
+                order_id: orderId,
+                order_amount: totalAmount,
+                commission: commission,
+                profit: vendorEarnings,
+                delivery_fee: deliveryFee,
+                settlement_status: "credited",
+                created_at: new Date().toISOString()
+              });
+
+              saveFinData(finData);
+              console.log(`[FINANCE] Credited ₹${vendorEarnings} earnings to vendor ${vId} for order ${orderId}. Commission: ₹${commission}`);
+            } else {
+              console.log(`[FINANCE] Order ${orderId} already processed in ledger, skipping duplicate credit.`);
+            }
+          } catch (fErr) {
+            console.error("Error crediting vendor wallet:", fErr);
+          }
+        }
+
+        // 2. Process delivery boy commission
+        if (data.delivery_boy_id) {
+          try {
+            const commission = data.delivery_fee || 50;
+            const { data: dboy } = await supabase
+              .from('delivery_boys')
+              .select('commission_balance')
+              .eq('id', data.delivery_boy_id)
+              .single();
+              
+            if (dboy) {
+              const newBalance = (dboy.commission_balance || 0) + commission;
+              await supabase
+                .from('delivery_boys')
+                .update({ commission_balance: newBalance })
+                .eq('id', data.delivery_boy_id);
+                
+              console.log(`[SERVER] Added ₹${commission} commission to driver. New balance: ₹${newBalance}`);
+            }
+          } catch (dboyErr) {
+            console.error("Error crediting delivery boy commission:", dboyErr);
+          }
+        }
+      }
+
+      // If status changed to cancelled, restore stock
+      if (updateData.status === 'cancelled') {
+        const { data: items } = await supabase.from('order_items').select('*').eq('order_id', orderId);
+        if (items) {
+          for (const item of items) {
+            const { data: prod } = await supabase.from('products').select('stock, stock_units').eq('id', item.product_id).single();
+            if (prod) {
+              const currentStock = typeof prod.stock === 'number' ? prod.stock : 0;
+              const currentStockUnits = typeof prod.stock_units === 'number' ? prod.stock_units : currentStock;
+              const newStock = currentStock + item.quantity;
+              const newStockUnits = currentStockUnits + item.quantity;
+              await supabase.from('products').update({ 
+                stock: newStock,
+                stock_units: newStockUnits
+              }).eq('id', item.product_id);
+            }
+          }
         }
       }
 
@@ -934,10 +1064,331 @@ async function startServer() {
         throw itemsError;
       }
 
+      for (const item of items) {
+        const { data: prod } = await supabase.from('products').select('stock, stock_units').eq('id', item.id).single();
+        if (prod) {
+          const currentStock = typeof prod.stock === 'number' ? prod.stock : 0;
+          const currentStockUnits = typeof prod.stock_units === 'number' ? prod.stock_units : currentStock;
+          const newStock = Math.max(0, currentStock - item.quantity);
+          const newStockUnits = Math.max(0, currentStockUnits - item.quantity);
+          await supabase.from('products').update({ 
+            stock: newStock,
+            stock_units: newStockUnits
+          }).eq('id', item.id);
+        }
+      }
+
       res.status(201).json({ success: true, message: "Order placed successfully (COD)", orderId: newOrder.id });
     } catch (error) {
       console.error("COD Order Error:", error);
       res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 1. GET Vendor Wallet
+  app.get("/api/vendor/wallet", async (req, res) => {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: "Missing userId parameter" });
+    }
+    try {
+      const finData = getFinData();
+      const vId = userId as string;
+
+      // Ensure wallet entry exists
+      if (!finData.wallets[vId]) {
+        finData.wallets[vId] = {
+          available_balance: 0,
+          pending_earnings: 0,
+          total_earnings: 0,
+          last_payout: 0,
+          settlement_status: "settled",
+          bank_name: "State Bank of India",
+          account_number: "******9281",
+          ifsc_code: "SBIN0001234",
+          holder_name: ""
+        };
+        saveFinData(finData);
+      }
+
+      const wallet = { ...finData.wallets[vId] };
+
+      // Dynamically calculate pending earnings based on orders assigned to this vendor that are not yet delivered/cancelled/rejected
+      const { data: activeOrders, error: activeOrdersError } = await supabase
+        .from('orders')
+        .select('total_amount, delivery_fee')
+        .eq('vendor_id', vId)
+        .not('status', 'is', null)
+        .not('status', 'in', '("delivered", "cancelled", "rejected")');
+
+      let dynamicPending = 0;
+      if (!activeOrdersError && activeOrders) {
+        activeOrders.forEach((o: any) => {
+          const total = Number(o.total_amount || 0);
+          const deliveryFee = Number(o.delivery_fee || 0);
+          const subtotal = Math.max(0, total - deliveryFee);
+          const commission = subtotal * 0.10; // 10%
+          dynamicPending += (subtotal - commission);
+        });
+      }
+
+      wallet.pending_earnings = Math.round(dynamicPending * 100) / 100;
+
+      res.json(wallet);
+    } catch (error: any) {
+      console.error("Error fetching vendor wallet:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 2. POST Update Bank Account details
+  app.post("/api/vendor/wallet/bank", async (req, res) => {
+    const { userId, bank_name, account_number, ifsc_code, holder_name } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "Missing userId parameter" });
+    }
+    try {
+      const finData = getFinData();
+      const vId = userId;
+
+      if (!finData.wallets[vId]) {
+        finData.wallets[vId] = {
+          available_balance: 0,
+          pending_earnings: 0,
+          total_earnings: 0,
+          last_payout: 0,
+          settlement_status: "settled",
+          bank_name: "State Bank of India",
+          account_number: "******9281",
+          ifsc_code: "SBIN0001234",
+          holder_name: ""
+        };
+      }
+
+      const wallet = finData.wallets[vId];
+      if (bank_name) wallet.bank_name = bank_name;
+      if (account_number) wallet.account_number = account_number;
+      if (ifsc_code) wallet.ifsc_code = ifsc_code;
+      if (holder_name) wallet.holder_name = holder_name;
+
+      saveFinData(finData);
+      res.json({ success: true, message: "Bank details updated successfully", wallet });
+    } catch (error) {
+      console.error("Error updating bank details:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 3. POST Payout Withdrawal Request
+  app.post("/api/vendor/payout-request", async (req, res) => {
+    const { userId, amount, bank_name, account_number } = req.body;
+    if (!userId || !amount) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const withdrawAmount = Number(amount);
+    if (isNaN(withdrawAmount) || withdrawAmount < 100) {
+      return res.status(400).json({ error: "Minimum payout amount is ₹100" });
+    }
+
+    try {
+      const finData = getFinData();
+      const vId = userId;
+
+      const wallet = finData.wallets[vId];
+      if (!wallet || wallet.available_balance < withdrawAmount) {
+        return res.status(400).json({ error: "Cannot withdraw more than your available wallet balance" });
+      }
+
+      // Prevent duplicate active payout requests (where status is 'pending' or 'approved')
+      const hasActiveRequest = finData.payouts.some(
+        (p: any) => p.vendor_id === vId && (p.status === "pending" || p.status === "approved")
+      );
+      if (hasActiveRequest) {
+        return res.status(400).json({ error: "You already have an active payout request pending settlement." });
+      }
+
+      // Fetch official store name from database vendors catalog
+      const { data: vendorProfile } = await supabase
+        .from('vendors')
+        .select('store_name')
+        .eq('user_id', vId)
+        .maybeSingle();
+
+      const storeName = vendorProfile?.store_name || "Blinkit Merchant Partner";
+
+      // Deduct immediately to hold funds and prevent duplicate spending
+      wallet.available_balance = Math.round((wallet.available_balance - withdrawAmount) * 100) / 100;
+      wallet.settlement_status = "pending_settlement";
+
+      const payoutRequest = {
+        id: `PAY-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+        vendor_id: vId,
+        store_name: storeName,
+        amount: withdrawAmount,
+        bank_name: bank_name || wallet.bank_name || "State Bank of India",
+        account_number: account_number || wallet.account_number || "******9281",
+        status: "pending", // "pending", "approved", "paid", "rejected"
+        requested_at: new Date().toISOString(),
+        processed_at: null,
+        transaction_id: null
+      };
+
+      finData.payouts.push(payoutRequest);
+      saveFinData(finData);
+
+      res.json({ success: true, message: "Payout request submitted successfully!", payout: payoutRequest, wallet });
+    } catch (error) {
+      console.error("Payout request error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 4. GET Payout History for a Vendor
+  app.get("/api/vendor/payout-history", async (req, res) => {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: "Missing userId parameter" });
+    }
+    try {
+      const finData = getFinData();
+      const list = finData.payouts.filter((p: any) => p.vendor_id === userId);
+      // Sort newest requested_at first
+      list.sort((a: any, b: any) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime());
+      res.json(list);
+    } catch (error) {
+      console.error("Payout history fetch error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 5. GET Earnings Ledger for a Vendor
+  app.get("/api/vendor/earnings-ledger", async (req, res) => {
+    const { userId } = req.query;
+    if (!userId) {
+      return res.status(400).json({ error: "Missing userId parameter" });
+    }
+    try {
+      const finData = getFinData();
+      const list = finData.earnings_ledger.filter((e: any) => e.vendor_id === userId);
+      list.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      res.json(list);
+    } catch (error) {
+      console.error("Earnings ledger fetch error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 6. GET All Payout Requests (Admin View)
+  app.get("/api/admin/payouts", async (req, res) => {
+    try {
+      const finData = getFinData();
+      // Sort newest requested first
+      const sorted = [...finData.payouts].sort(
+        (a: any, b: any) => new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
+      );
+      res.json(sorted);
+    } catch (error) {
+      console.error("Admin payouts fetch error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 7. POST Admin Action on Payouts (Approve / Reject / Mark As Paid)
+  app.post("/api/admin/payouts/action", async (req, res) => {
+    const { payoutId, action } = req.body;
+    if (!payoutId || !action) {
+      return res.status(400).json({ error: "Missing payoutId or action fields" });
+    }
+
+    try {
+      const finData = getFinData();
+      const payout = finData.payouts.find((p: any) => p.id === payoutId);
+      if (!payout) {
+        return res.status(404).json({ error: "Payout request not found" });
+      }
+
+      const vId = payout.vendor_id;
+      const wallet = finData.wallets[vId];
+
+      if (action === "approve") {
+        payout.status = "approved";
+        payout.processed_at = new Date().toISOString();
+      } else if (action === "reject") {
+        payout.status = "rejected";
+        payout.processed_at = new Date().toISOString();
+        // Return funds back to available wallet balance!
+        if (wallet) {
+          wallet.available_balance = Math.round((wallet.available_balance + payout.amount) * 100) / 100;
+          wallet.settlement_status = "settled";
+        }
+      } else if (action === "pay") {
+        payout.status = "paid";
+        payout.processed_at = new Date().toISOString();
+        payout.transaction_id = `TXN-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+        if (wallet) {
+          wallet.last_payout = payout.amount;
+          wallet.settlement_status = "settled";
+        }
+      } else {
+        return res.status(400).json({ error: "Invalid payout action specified" });
+      }
+
+      saveFinData(finData);
+      res.json({ success: true, message: `Payout request processed successfully with status ${payout.status}`, payout, wallet });
+    } catch (error) {
+      console.error("Admin payout action error:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  // 8. Geocode Search Proxy (avoid client CORS and rate-limits)
+  app.get("/api/geocode/search", async (req, res) => {
+    const { q } = req.query;
+    if (!q) {
+      return res.status(400).json({ error: "Query parameter 'q' is required" });
+    }
+    try {
+      const response = await axios.get("https://nominatim.openstreetmap.org/search", {
+        params: {
+          format: "json",
+          q: q as string,
+          limit: 1
+        },
+        headers: {
+          "User-Agent": "BlinkitMerchantPartnerApp/1.0 (bictcomputereducation1@gmail.com)"
+        }
+      });
+      res.json(response.data);
+    } catch (err: any) {
+      console.error("Geocode search error:", err.message);
+      res.status(500).json({ error: "Geocoding lookup failed" });
+    }
+  });
+
+  // 9. Geocode Reverse Proxy (avoid client CORS and rate-limits)
+  app.get("/api/geocode/reverse", async (req, res) => {
+    const { lat, lng } = req.query;
+    if (!lat || !lng) {
+      return res.status(400).json({ error: "Parameters 'lat' and 'lng' are required" });
+    }
+    try {
+      const response = await axios.get("https://nominatim.openstreetmap.org/reverse", {
+        params: {
+          format: "json",
+          lat: lat as string,
+          lon: lng as string,
+          zoom: 18,
+          addressdetails: 1
+        },
+        headers: {
+          "User-Agent": "BlinkitMerchantPartnerApp/1.0 (bictcomputereducation1@gmail.com)"
+        }
+      });
+      res.json(response.data);
+    } catch (err: any) {
+      console.error("Geocode reverse error:", err.message);
+      res.status(500).json({ error: "Reverse geocoding lookup failed" });
     }
   });
 

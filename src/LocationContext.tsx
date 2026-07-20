@@ -77,24 +77,34 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
     checkSavedLocation();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        localStorage.removeItem('vexo_pincode');
-        localStorage.removeItem('vexo_city');
-        localStorage.removeItem('vexo_address');
-        localStorage.removeItem('vexo_lat');
-        localStorage.removeItem('vexo_lng');
-        localStorage.removeItem('vexo_serviceable');
-        setPincode(null);
-        setCity(null);
-        setAddress(null);
-        setLatitude(null);
-        setLongitude(null);
-        setIsServiceable(true); 
-      }
-    });
+    let subscription: any = null;
+    try {
+      const res = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_OUT') {
+          localStorage.removeItem('vexo_pincode');
+          localStorage.removeItem('vexo_city');
+          localStorage.removeItem('vexo_address');
+          localStorage.removeItem('vexo_lat');
+          localStorage.removeItem('vexo_lng');
+          localStorage.removeItem('vexo_serviceable');
+          setPincode(null);
+          setCity(null);
+          setAddress(null);
+          setLatitude(null);
+          setLongitude(null);
+          setIsServiceable(true); 
+        }
+      });
+      subscription = res?.data?.subscription;
+    } catch (err) {
+      console.error('Error in onAuthStateChange setup in LocationContext:', err);
+    }
 
-    return () => subscription.unsubscribe();
+    return () => {
+      if (subscription && typeof subscription.unsubscribe === 'function') {
+        subscription.unsubscribe();
+      }
+    };
   }, [user]);
 
   const setLocation = async (newPincode: string, newCity: string, newAddress: string, lat?: number | null, lng?: number | null) => {

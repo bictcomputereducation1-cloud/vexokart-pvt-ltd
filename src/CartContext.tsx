@@ -102,11 +102,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     try {
       const existingItem = items.find(item => item.id === product.id);
+      const newQuantity = (existingItem?.quantity || 0) + 1;
+
+      const stock_units = typeof product.stock_units === 'number' ? product.stock_units : (product.stock !== undefined ? product.stock : 0);
+      if (newQuantity > stock_units) {
+        toast.error(`Only ${stock_units} items left in stock`);
+        return;
+      }
 
       if (existingItem) {
         const { error } = await supabase
           .from('cart')
-          .update({ quantity: existingItem.quantity + 1 })
+          .update({ quantity: newQuantity })
           .eq('user_id', user.id)
           .eq('product_id', product.id);
 
@@ -155,6 +162,15 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (quantity <= 0) {
       await removeFromCart(productId);
       return;
+    }
+
+    const item = items.find(i => i.id === productId);
+    if (item) {
+      const stock_units = typeof item.stock_units === 'number' ? item.stock_units : (item.stock !== undefined ? item.stock : 0);
+      if (quantity > stock_units) {
+        toast.error(`Only ${stock_units} items left in stock`);
+        return;
+      }
     }
 
     try {

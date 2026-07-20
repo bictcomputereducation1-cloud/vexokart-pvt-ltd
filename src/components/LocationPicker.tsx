@@ -53,8 +53,7 @@ export const LocationPicker: React.FC<LocationPickerProps> = ({ onLocationSelect
     setIsReverseGeocoding(true);
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
-        { headers: { 'Accept-Language': 'en' } }
+        `/api/geocode/reverse?lat=${lat}&lng=${lng}`
       );
       
       const text = await response.text();

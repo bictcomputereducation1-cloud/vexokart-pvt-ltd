@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { Product, Category, Subcategory } from '../types';
 import { Button } from '../components/ui/button';
@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Search, Package, CheckCircle2, XCircle } from 'lucide-react';
+import { apiCache } from '../lib/apiCache';
 import {
   Tabs,
   TabsContent,
@@ -30,9 +31,65 @@ export default function AdminProducts() {
   const [adminComments, setAdminComments] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  useEffect(() => {
-    fetchData();
+  const fetchData = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
+    setLoading(true);
+    try {
+      console.log("[DEBUG] Fetching products data from: /api/admin/products");
+      const [productsRes, categoriesRes] = await Promise.all([
+        apiCache.fetchOnce<Product[]>('admin_products', async (fetchSignal) => {
+          const res = await fetch('/api/admin/products', {
+            headers: { 
+              'Accept': 'application/json',
+              'Cache-Control': 'no-cache'
+            },
+            cache: 'no-store',
+            signal: fetchSignal
+          });
+          const contentType = res.headers.get("content-type");
+          if (!res.ok) throw new Error(`API Error`);
+          if (!contentType || !contentType.includes("application/json")) throw new Error(`Invalid format`);
+          return await res.json();
+        }, { forceRefetch, signal }),
+        apiCache.fetchOnce<Category[]>('admin_categories', async () => {
+          const { data, error } = await supabase.from('categories').select('*').order('name');
+          if (error) throw error;
+          return data as Category[];
+        }, { forceRefetch })
+      ]);
+
+      setProducts(productsRes);
+      setCategories(categoriesRes);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        console.log("[AdminProducts] Fetch aborted.");
+        return;
+      }
+      toast.error('Failed to load data.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  const fetchSubcategories = useCallback(async (catId: string) => {
+    try {
+      const data = await apiCache.fetchOnce<Subcategory[]>(`subcategories_by_cat_${catId}`, async () => {
+        const { data: res, error } = await supabase.from('subcategories').select('*').eq('category_id', catId).order('name');
+        if (error) throw error;
+        return res as Subcategory[];
+      });
+      setSubcategories(data || []);
+    } catch (error) {
+      console.error('Failed to fetch subcategories:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(false, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [fetchData]);
 
   useEffect(() => {
     if (selectedCategoryId) {
@@ -40,41 +97,7 @@ export default function AdminProducts() {
     } else {
       setSubcategories([]);
     }
-  }, [selectedCategoryId]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      console.log("[DEBUG] Fetching products data from: /api/admin/products");
-      const [productsRes, categoriesRes] = await Promise.all([
-        fetch('/api/admin/products', {
-          headers: { 
-            'Accept': 'application/json',
-            'Cache-Control': 'no-cache'
-          },
-          cache: 'no-store'
-        }).then(async res => {
-          const contentType = res.headers.get("content-type");
-          if (!res.ok) throw new Error(`API Error`);
-          if (!contentType || !contentType.includes("application/json")) throw new Error(`Invalid format`);
-          return await res.json();
-        }),
-        supabase.from('categories').select('*').order('name')
-      ]);
-
-      if (Array.isArray(productsRes)) setProducts(productsRes as Product[]);
-      if (categoriesRes.data) setCategories(categoriesRes.data as Category[]);
-    } catch (error: any) {
-      toast.error('Failed to load data.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchSubcategories = async (catId: string) => {
-    const { data } = await supabase.from('subcategories').select('*').eq('category_id', catId).order('name');
-    setSubcategories(data || []);
-  };
+  }, [selectedCategoryId, fetchSubcategories]);
 
   const handleUpdateStatus = async (id: string, newStatus: 'approved' | 'rejected', comments?: string) => {
     try {
@@ -88,8 +111,9 @@ export default function AdminProducts() {
       const { error } = await supabase.from('products').update(payload).eq('id', id);
       if (error) throw error;
       
+      apiCache.invalidate('admin_products');
       toast.success(`Product ${newStatus}`);
-      fetchData();
+      fetchData(true);
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -108,6 +132,9 @@ export default function AdminProducts() {
       price: parseFloat(formData.get('price') as string),
       original_price: parseFloat(formData.get('original_price') as string),
       stock: parseInt(formData.get('stock') as string),
+      selling_price: parseFloat(formData.get('price') as string),
+      mrp: parseFloat(formData.get('original_price') as string),
+      stock_units: parseInt(formData.get('stock') as string),
       category_id: formData.get('category_id') as string,
       subcategory_id: (subId && subId !== 'none') ? subId : null,
       image_url: formData.get('image_url') as string,
@@ -127,15 +154,58 @@ export default function AdminProducts() {
         const { error } = await supabase.from('products').update(productData).eq('id', editingProduct.id);
         if (error) throw error;
         toast.success('Product updated');
+        setIsDialogOpen(false);
+        setEditingProduct(null);
+        setSelectedCategoryId('');
+        fetchData();
       } else {
-        const { error } = await supabase.from('products').insert([productData]);
-        if (error) throw error;
+        const { data: authData, error: authErr } = await supabase.auth.getUser();
+        const user = authData?.user;
+        console.log("auth user id:", user?.id);
+
+        if (authErr || !user) {
+          toast.error("Not authenticated");
+          return;
+        }
+
+        const { data: vendor, error: vendorErr } = await supabase
+          .from('vendors')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        console.log("fetched vendor:", vendor);
+
+        if (vendorErr || !vendor) {
+          toast.error("Vendor profile missing");
+          return;
+        }
+
+        const insertPayload = {
+          ...productData,
+          vendor_id: vendor.id,
+        };
+        console.log("insert payload:", insertPayload);
+
+        const { data: insertedData, error: insertErr } = await supabase
+          .from('products')
+          .insert([insertPayload])
+          .select();
+        
+        console.log("Supabase insert response:", { data: insertedData, error: insertErr });
+
+        if (insertErr) {
+          toast.error(insertErr.message);
+          return;
+        }
+
         toast.success('Product added');
+        setIsDialogOpen(false);
+        setEditingProduct(null);
+        setSelectedCategoryId('');
+        apiCache.invalidate('admin_products');
+        fetchData(true);
       }
-      setIsDialogOpen(false);
-      setEditingProduct(null);
-      setSelectedCategoryId('');
-      fetchData();
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -146,8 +216,9 @@ export default function AdminProducts() {
     try {
       const { error } = await supabase.from('products').delete().eq('id', id);
       if (error) throw error;
+      apiCache.invalidate('admin_products');
       toast.success('Product deleted');
-      fetchData();
+      fetchData(true);
     } catch (error: any) {
       toast.error(error.message);
     }
@@ -199,7 +270,7 @@ export default function AdminProducts() {
               </div>
             </DialogHeader>
 
-            <form onSubmit={handleSave} className="p-6">
+            <form key={editingProduct?.id || 'new'} onSubmit={handleSave} className="p-6">
               {/* STEP 1: Basic Info */}
               <div className={step === 1 ? "space-y-6 animate-in slide-in-from-right-4 duration-300" : "hidden"}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -538,9 +609,14 @@ export default function AdminProducts() {
                 <TableCell className="text-slate-400 line-through">₹{product.original_price}</TableCell>
                 <TableCell className="font-bold text-green-600">₹{product.price}</TableCell>
                 <TableCell>
-                  <span className={product.stock < 10 ? 'text-red-500 font-bold' : 'font-semibold text-slate-700'}>
-                    {product.stock}
-                  </span>
+                  {(() => {
+                    const stock_val = typeof product.stock_units === 'number' ? product.stock_units : (product.stock !== undefined ? product.stock : 0);
+                    return (
+                      <span className={stock_val <= 0 ? 'text-red-600 font-black bg-red-50 px-2 py-1 rounded uppercase min-w-[max-content] inline-block text-[10px]' : stock_val < 5 ? 'text-orange-500 font-bold' : 'font-semibold text-slate-700'}>
+                        {stock_val <= 0 ? 'Out of Stock' : stock_val}
+                      </span>
+                    );
+                  })()}
                 </TableCell>
                 <TableCell className="text-right">
                   <div className="flex justify-end gap-2 items-center">

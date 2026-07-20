@@ -49,26 +49,61 @@ export default function ProductDetail() {
 
   const fetchProduct = async () => {
     try {
-      const { data, error } = await supabase
+      // Fetch product first safely with select *
+      const { data: pData, error: pError } = await supabase
         .from('products')
-        .select('*, categories(*)')
+        .select('*')
         .eq('id', id)
         .single();
 
-      if (error) throw error;
-      setProduct(data);
+      if (pError) throw pError;
+      if (!pData) throw new Error("Product data is null");
 
-      // Fetch recommended
-      const { data: recs } = await supabase
+      // Fetch related category safely in secondary step
+      let catData = null;
+      if (pData.category_id) {
+        try {
+          const { data: cData } = await supabase
+            .from('categories')
+            .select('*')
+            .eq('id', pData.category_id)
+            .maybeSingle();
+          if (cData) catData = cData;
+        } catch (catErr) {
+          console.error("Non-fatal recommendation error: Category fetch failed:", catErr);
+        }
+      }
+
+      setProduct({
+        ...pData,
+        categories: catData
+      });
+
+      // Fetch recommended products and filter live and in stock, safely
+      const { data: recs, error: recsError } = await supabase
         .from('products')
         .select('*')
-        .eq('category_id', data.category_id)
-        .neq('id', data.id)
-        .limit(6);
+        .eq('category_id', pData.category_id)
+        .neq('id', pData.id);
       
-      if (recs) setRecommended(recs);
+      if (recsError) {
+        console.error("Non-fatal recommendation error: Failed to fetch recommended products:", recsError);
+      }
+      
+      if (recs) {
+        const liveRecs = recs.filter((p: any) => {
+          const statusVal = p.status || p.verification_status || 'approved';
+          const isLive = statusVal === 'live' || statusVal === 'approved';
+          const stockUnits = typeof p.stock_units === 'number' 
+            ? p.stock_units 
+            : (typeof p.stock === 'number' ? p.stock : 0);
+          return isLive && stockUnits > 0 && p.is_active !== false;
+        });
+        setRecommended(liveRecs.slice(0, 6));
+      }
     } catch (error) {
-      console.error('Error fetching product:', error);
+      // 3. Show error in console if API fails
+      console.error('[API FAIL - ProductDetail] Error fetching product detail:', error);
       toast.error('Product not found');
       navigate('/');
     } finally {
@@ -84,9 +119,16 @@ export default function ProductDetail() {
   );
   if (!product) return null;
 
-  const oldPrice = product.original_price || Math.round(product.price * 1.25);
-  const savings = Math.max(0, oldPrice - product.price);
-  const discountPercent = Math.round((savings / oldPrice) * 100);
+  const stock_units = typeof product.stock_units === 'number' ? product.stock_units : (product.stock !== undefined ? product.stock : 0);
+  const selling_price = typeof product.selling_price === 'number' ? product.selling_price : product.price;
+  const mrp = typeof product.mrp === 'number' ? product.mrp : product.original_price;
+
+  const oldPrice = mrp || Math.round(selling_price * 1.25);
+  const savings = Math.max(0, oldPrice - selling_price);
+  const discountPercent = oldPrice ? Math.round((savings / oldPrice) * 100) : 0;
+
+  const isOutOfStock = stock_units <= 0;
+  const isPriceUnavailable = !selling_price || selling_price <= 0;
 
   return (
     <div className="bg-[#F8F9FB] min-h-screen pb-40 font-sans">
@@ -183,14 +225,34 @@ export default function ProductDetail() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-4">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-black text-slate-900">₹{product.price}</span>
-                  <span className="text-xl font-bold text-slate-300 line-through">₹{oldPrice}</span>
+              {isOutOfStock && (
+                <div className="bg-slate-100 text-slate-700 font-black text-xs uppercase tracking-widest px-3 py-1.5 rounded-lg border border-slate-200 inline-block">
+                  Out of Stock
                 </div>
-                <div className="bg-[#F3E8FF] text-[#5E3192] text-[11px] font-black px-3 py-1 rounded-lg uppercase">
-                  {discountPercent}% OFF
+              )}
+              {!isOutOfStock && stock_units > 0 && stock_units < 5 && (
+                <div className="text-red-500 font-black text-[11px] uppercase tracking-wider">
+                  Only few left
                 </div>
+              )}
+              <div className="flex items-center gap-4 mt-2">
+                {isPriceUnavailable ? (
+                  <span className="text-sm font-bold text-slate-500">Price unavailable</span>
+                ) : (
+                  <>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-3xl font-black text-slate-900">₹{selling_price}</span>
+                      {oldPrice > selling_price && (
+                        <span className="text-xl font-bold text-slate-300 line-through">₹{oldPrice}</span>
+                      )}
+                    </div>
+                    {discountPercent > 0 && (
+                      <div className="bg-[#F3E8FF] text-[#5E3192] text-[11px] font-black px-3 py-1 rounded-lg uppercase">
+                        {discountPercent}% OFF
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
               <p className="text-[11px] font-bold text-slate-400">Inclusive of all taxes</p>
 
@@ -338,38 +400,48 @@ export default function ProductDetail() {
         <div className="max-w-4xl mx-auto flex items-center justify-between gap-6">
           <div className="flex flex-col">
             <div className="flex items-baseline gap-1.5">
-               <span className="text-2xl font-black text-slate-900 leading-none">₹{product.price}</span>
-               <span className="text-sm font-bold text-slate-300 line-through">₹{oldPrice}</span>
+               <span className="text-2xl font-black text-slate-900 leading-none">₹{selling_price}</span>
+               {oldPrice > selling_price && (
+                 <span className="text-sm font-bold text-slate-300 line-through">₹{oldPrice}</span>
+               )}
             </div>
             <p className="text-xs font-black text-emerald-600 mt-1">You save ₹{savings}</p>
           </div>
 
           <div className="flex items-center gap-6">
-            <div className="flex items-center bg-[#F8F9FB] rounded-2xl p-1 border border-slate-100 h-14">
-              <button 
-                onClick={() => removeFromCart(product.id)}
-                className="h-12 w-12 flex items-center justify-center text-slate-400 active:scale-90 transition-all font-black text-xl"
-              >
-                −
-              </button>
-              <span className="w-8 text-center font-black text-lg text-slate-900">{itemQty || 1}</span>
-              <button 
-                onClick={() => addToCart(product)}
-                className="h-12 w-12 flex items-center justify-center text-[#5E3192] active:scale-90 transition-all font-black text-xl"
-              >
-                +
-              </button>
-            </div>
+            {!isOutOfStock && !isPriceUnavailable && (
+              <div className="flex items-center bg-[#F8F9FB] rounded-2xl p-1 border border-slate-100 h-14">
+                <button 
+                  onClick={() => removeFromCart(product.id)}
+                  className="h-12 w-12 flex items-center justify-center text-slate-400 active:scale-90 transition-all font-black text-xl"
+                >
+                  −
+                </button>
+                <span className="w-8 text-center font-black text-lg text-slate-900">{itemQty || 1}</span>
+                <button 
+                  onClick={() => addToCart(product)}
+                  className="h-12 w-12 flex items-center justify-center text-[#5E3192] active:scale-90 transition-all font-black text-xl"
+                >
+                  +
+                </button>
+              </div>
+            )}
 
             <button 
               onClick={() => {
                 addToCart(product);
                 toast.success('Added to Cart');
               }}
-              className="flex-grow min-w-[160px] h-14 bg-[#5E3192] text-white rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-[#5E3192]/20 active:scale-95 transition-all"
+              disabled={isOutOfStock || isPriceUnavailable}
+              className={cn(
+                "flex-grow min-w-[160px] h-14 rounded-2xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 active:scale-95 transition-all",
+                isOutOfStock || isPriceUnavailable
+                  ? "bg-slate-100 text-slate-400 cursor-not-allowed"
+                  : "bg-[#5E3192] text-white shadow-xl shadow-[#5E3192]/20"
+              )}
             >
               <ShoppingCart className="h-5 w-5" />
-              Add to Cart
+              {isOutOfStock ? 'UNAVAILABLE' : 'Add to Cart'}
             </button>
           </div>
         </div>

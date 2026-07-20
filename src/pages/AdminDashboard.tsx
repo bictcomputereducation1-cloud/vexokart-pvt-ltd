@@ -1,9 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
+import { toast } from 'sonner';
+import { apiCache } from '../lib/apiCache';
 import { 
   LayoutDashboard, 
   Package, 
@@ -26,47 +28,72 @@ export default function AdminDashboard() {
   const [recentProducts, setRecentProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async (forceRefetch = false, signal?: AbortSignal) => {
     try {
-      const [ordersRes, productsRes, usersRes, recentProductsRes] = await Promise.all([
-        supabase.from('orders').select('total_amount'),
-        supabase.from('products').select('id', { count: 'exact' }),
-        supabase.from('users').select('id', { count: 'exact' }),
-        supabase.from('products').select('*').order('created_at', { ascending: false }).limit(5)
+      setLoading(true);
+      
+      const [ordersData, productsCount, usersCount, recentProductsData] = await Promise.all([
+        apiCache.fetchOnce<any[]>('admin_stats_orders', async () => {
+          const { data, error } = await supabase.from('orders').select('total_amount');
+          if (error) throw error;
+          return data || [];
+        }, { forceRefetch }),
+        apiCache.fetchOnce<number>('admin_stats_products_count', async () => {
+          const { count, error } = await supabase.from('products').select('id', { count: 'exact', head: true });
+          if (error) throw error;
+          return count || 0;
+        }, { forceRefetch }),
+        apiCache.fetchOnce<number>('admin_stats_users_count', async () => {
+          const { count, error } = await supabase.from('users').select('id', { count: 'exact', head: true });
+          if (error) throw error;
+          return count || 0;
+        }, { forceRefetch }),
+        apiCache.fetchOnce<any[]>('admin_stats_recent_products', async () => {
+          const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false }).limit(5);
+          if (error) throw error;
+          return data || [];
+        }, { forceRefetch })
       ]);
 
-      if (ordersRes.error) console.error('Orders error:', ordersRes.error);
-      if (productsRes.error) console.error('Products error:', productsRes.error);
-      if (usersRes.error) console.error('Users error:', usersRes.error);
+      if (signal?.aborted) return;
 
-      const totalRevenue = ordersRes.data?.reduce((sum, order) => sum + Number(order.total_amount), 0) || 0;
+      const totalRevenue = ordersData.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
       
       setStats({
-        totalOrders: ordersRes.data?.length || 0,
+        totalOrders: ordersData.length,
         totalRevenue,
-        totalProducts: productsRes.count || 0,
-        totalUsers: usersRes.count || 0
+        totalProducts: productsCount,
+        totalUsers: usersCount
       });
-      setRecentProducts(recentProductsRes.data || []);
-    } catch (error) {
+      setRecentProducts(recentProductsData);
+    } catch (error: any) {
+      if (error.name === 'AbortError') return;
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchData(false, controller.signal);
+    return () => {
+      controller.abort();
+    };
+  }, [fetchData]);
 
   const deleteProduct = async (id: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
     try {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
-      fetchData();
+       const { error } = await supabase.from('products').delete().eq('id', id);
+       if (error) throw error;
+       
+       apiCache.invalidatePattern('admin_stats_');
+       apiCache.invalidate('admin_products');
+       fetchData(true);
+       toast.success('Product deleted successfully');
     } catch (error) {
-      alert('Error deleting product');
+       toast.error('Error deleting product');
     }
   };
 
