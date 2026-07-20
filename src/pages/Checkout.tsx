@@ -268,7 +268,8 @@ export default function Checkout() {
         order_id: orderData.id,
         handler: async (response: any) => {
           try {
-            const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
+            const cleanAddress = selectedAddress.full_address.replace(/^\[(Home|Work|Other)\]\s*/i, '$1: ');
+            const fullAddressText = `${cleanAddress}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
             
             // 5. Use server-side verification and order creation
             const { data: verifyData } = await axios.post('/api/payment/verify', {
@@ -350,7 +351,8 @@ export default function Checkout() {
         throw new Error("Local vendor not assigned to your area yet. Please contact support.");
       }
 
-      const fullAddressText = `${selectedAddress.full_address}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
+      const cleanAddress = selectedAddress.full_address.replace(/^\[(Home|Work|Other)\]\s*/i, '$1: ');
+      const fullAddressText = `${cleanAddress}, ${selectedAddress.city} - ${selectedAddress.pincode}`;
       
       const { data: response } = await axios.post('/api/orders/cod', {
         userId: user?.id,

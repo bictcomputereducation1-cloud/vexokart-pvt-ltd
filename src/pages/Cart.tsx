@@ -400,12 +400,21 @@ export default function Cart() {
       </div>
 
       {/* 🔹 STICKY FOOTER CHECKOUT */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 p-4 z-[100] rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.06)]">
-        <div className="max-w-2xl mx-auto relative">
-          {/* Floating Cart Indicator */}
-          <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-1.5 rounded-full flex items-center gap-2 shadow-lg border border-slate-800 pointer-events-none">
-            <ShoppingCart className="h-3.5 w-3.5 fill-current" />
-            <span className="text-[10px] font-black uppercase tracking-widest">{totalItems} Items in cart</span>
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-4 py-5 z-[100] rounded-t-[2.5rem] shadow-[0_-15px_40px_rgba(0,0,0,0.06)]">
+        <div className="max-w-2xl mx-auto relative space-y-3">
+          {/* Deliver Address Line */}
+          <div className="flex items-center justify-between gap-2 px-1">
+            <div className="flex items-center gap-2 min-w-0">
+              <MapPin className="h-4 w-4 text-[#16A34A] shrink-0" />
+              <p className="text-[10px] font-black uppercase text-slate-400 tracking-wider">Deliver to:</p>
+              <span className="text-xs font-bold text-slate-800 truncate">{address || 'No address selected'}</span>
+            </div>
+            <button 
+              onClick={() => setIsModalOpen(true)}
+              className="text-[9px] font-black uppercase text-[#16A34A] hover:bg-emerald-50 px-2.5 py-1 rounded-md tracking-wider shrink-0"
+            >
+              Change
+            </button>
           </div>
 
           <button 

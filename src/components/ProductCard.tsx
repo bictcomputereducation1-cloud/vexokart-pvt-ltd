@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Heart, Star, MapPinOff } from 'lucide-react';
+import { Plus, Minus, Heart, Star, MapPinOff, Check } from 'lucide-react';
 import { Product } from '../types';
 import { useCart } from '../CartContext';
 import { motion } from 'motion/react';
@@ -13,7 +13,7 @@ interface ProductCardProps {
 }
 
 export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
-  const { addToCart, items } = useCart();
+  const { addToCart, items, updateQuantity, getItemQuantity } = useCart();
   const { isServiceable, pincode, setIsModalOpen } = useDeliveryLocation();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -54,7 +54,8 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
     }
   };
 
-  const isInCart = items.some(item => item.id === product.id);
+  const currentQty = getItemQuantity(product.id);
+  const isInCart = currentQty > 0;
 
   return (
     <motion.div
@@ -144,27 +145,60 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
             )}
           </div>
           
-          <button
-            onClick={handleAddClick}
-            disabled={isOutOfStock || isPriceUnavailable || (!!pincode && !isServiceable)}
-            className={cn(
-              "w-full h-11 rounded-2xl flex items-center group/btn transition-all active:scale-95 overflow-hidden",
-              isOutOfStock 
-                ? "bg-slate-100 cursor-not-allowed" 
-                : "bg-[#C49B3B] shadow-lg shadow-amber-900/10 hover:bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none"
-            )}
-          >
-            <div className="flex-grow flex items-center justify-center pl-4">
-              <span className={cn("text-[11px] font-black uppercase tracking-widest", isOutOfStock ? "text-slate-400" : "text-white")}>
-                {isOutOfStock ? 'UNAVAILABLE' : (isInCart ? 'View Cart' : 'ADD')}
-              </span>
-            </div>
-            {!isOutOfStock && (
-              <div className="h-9 w-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-1 text-white">
-                <Plus className="h-5 w-5" />
+          {isInCart ? (
+            <div className="w-full h-11 rounded-2xl bg-emerald-50 border-2 border-emerald-500/30 flex items-center justify-between p-1 shadow-sm">
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  updateQuantity(product.id, currentQty - 1);
+                }}
+                className="h-9 w-9 bg-white rounded-xl flex items-center justify-center text-[#16A34A] shadow-sm active:scale-90 hover:bg-green-100 transition-all"
+              >
+                <Minus className="h-4 w-4" />
+              </button>
+              
+              <div className="flex flex-col items-center justify-center flex-grow">
+                <span className="text-xs font-black text-[#16A34A] leading-none">{currentQty}</span>
+                <span className="text-[7px] font-black uppercase text-[#16A34A] tracking-wider mt-0.5 flex items-center gap-0.5">
+                  <Check className="h-2 w-2 stroke-[3px]" /> Added
+                </span>
               </div>
-            )}
-          </button>
+              
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  updateQuantity(product.id, currentQty + 1);
+                }}
+                className="h-9 w-9 bg-[#16A34A] rounded-xl flex items-center justify-center text-white shadow-sm active:scale-90 hover:bg-green-700 transition-all"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleAddClick}
+              disabled={isOutOfStock || isPriceUnavailable || (!!pincode && !isServiceable)}
+              className={cn(
+                "w-full h-11 rounded-2xl flex items-center group/btn transition-all active:scale-95 overflow-hidden",
+                isOutOfStock 
+                  ? "bg-slate-100 cursor-not-allowed" 
+                  : "bg-[#C49B3B] shadow-lg shadow-amber-900/10 hover:bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none"
+              )}
+            >
+              <div className="flex-grow flex items-center justify-center pl-4">
+                <span className={cn("text-[11px] font-black uppercase tracking-widest", isOutOfStock ? "text-slate-400" : "text-white")}>
+                  {isOutOfStock ? 'UNAVAILABLE' : 'ADD'}
+                </span>
+              </div>
+              {!isOutOfStock && (
+                <div className="h-9 w-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-1 text-white">
+                  <Plus className="h-5 w-5" />
+                </div>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </motion.div>

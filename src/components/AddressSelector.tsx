@@ -12,6 +12,14 @@ interface AddressSelectorProps {
   selectedId?: string;
 }
 
+const getAddressLabelAndText = (fullAddress: string) => {
+  const match = fullAddress.match(/^\[(Home|Work|Other)\]\s*(.*)/i);
+  if (match) {
+    return { label: match[1], text: match[2] };
+  }
+  return { label: 'Home', text: fullAddress };
+};
+
 export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, selectedId }) => {
   const { user } = useAuth();
   const { setLocation, isServiceable, pincode: currentPincode } = useDeliveryLocation();
@@ -44,9 +52,11 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
       if (error) throw error;
       setAddresses(data || []);
       
-      // Auto-select default or first address if nothing selected
+      // Auto-select last selected, default, or first address if nothing selected
       if (data && data.length > 0 && !selectedId) {
-        const def = data.find(a => a.is_default) || data[0];
+        const lastId = localStorage.getItem('vexo_last_address_id');
+        const lastSelected = data.find(a => a.id === lastId);
+        const def = lastSelected || data.find(a => a.is_default) || data[0];
         handleSelect(def);
       }
     } catch (error) {
@@ -164,11 +174,11 @@ export const AddressSelector: React.FC<AddressSelectorProps> = ({ onSelect, sele
               </div>
               <div className="flex-grow">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[11px] font-black uppercase tracking-tight text-slate-900 line-clamp-1">{addr.full_name}</span>
+                  <span className="text-[11px] font-black uppercase tracking-tight text-slate-900 line-clamp-1">{addr.full_name} ({getAddressLabelAndText(addr.full_address).label})</span>
                   {addr.is_default && <span className="text-[8px] font-black bg-primary/20 text-primary px-1.5 py-0.5 rounded uppercase tracking-widest">Default</span>}
                 </div>
                 <p className="text-[10px] font-medium text-slate-500 leading-relaxed mb-1 capitalize line-clamp-2">
-                  {addr.full_address}, {addr.city} - {addr.pincode}
+                  {getAddressLabelAndText(addr.full_address).text}, {addr.city} - {addr.pincode}
                 </p>
                 <div className="flex items-center gap-2">
                    <p className="text-[9px] font-black italic tracking-tighter text-slate-400">PH: {addr.phone}</p>
