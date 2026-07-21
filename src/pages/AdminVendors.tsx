@@ -12,14 +12,6 @@ import { apiCache } from '../lib/apiCache';
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
-    iconUrl: markerIcon,
-    shadowUrl: markerShadow,
-    iconSize: [25, 41],
-    iconAnchor: [12, 41]
-});
-L.Marker.prototype.options.icon = DefaultIcon;
-
 function MapEvents({ onMove }: { onMove: (lat: number, lng: number) => void }) {
   useMapEvents({
     click(e) {
@@ -36,6 +28,15 @@ export default function AdminVendors() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+
+  const customIcon = useMemo(() => {
+    return L.icon({
+      iconUrl: markerIcon,
+      shadowUrl: markerShadow,
+      iconSize: [25, 41],
+      iconAnchor: [12, 41]
+    });
+  }, []);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -478,6 +479,7 @@ export default function AdminVendors() {
                       draggable={true}
                       eventHandlers={eventHandlers}
                       ref={markerRef}
+                      icon={customIcon}
                     />
                     <MapEvents onMove={handleLocationChange} />
                   </MapContainer>
