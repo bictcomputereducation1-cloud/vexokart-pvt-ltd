@@ -20,9 +20,9 @@ export default defineConfig(({mode}) => {
     },
     build: {
       target: 'esnext',
-      minify: 'esbuild',
+      minify: false,
       cssMinify: true,
-      sourcemap: false,
+      sourcemap: true,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
