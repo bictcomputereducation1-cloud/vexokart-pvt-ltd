@@ -10,7 +10,16 @@ if (typeof window !== 'undefined') {
   const originalInfo = console.info;
 
   console.log = (...args) => {
-    if (localStorage.getItem('__vexo_debug__')) {
+    const isSpecialLog = args.some(arg => 
+      typeof arg === 'string' && (
+        arg.includes("Session Loaded") ||
+        arg.includes("Profile Loaded") ||
+        arg.includes("Loading False") ||
+        arg.includes("Navigate Login") ||
+        arg.includes("Navigate Home")
+      )
+    );
+    if (isSpecialLog || localStorage.getItem('__vexo_debug__')) {
       originalLog(...args);
     }
   };
