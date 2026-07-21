@@ -59,15 +59,18 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
 
   return (
     <motion.div
-      whileHover={user ? { y: -4 } : {}}
-      transition={{ duration: 0.2 }}
-      className={cn("bg-white rounded-[2rem] border border-slate-100 overflow-hidden shadow-sm flex flex-col h-full group transition-all duration-300 relative", isOutOfStock && "opacity-60 grayscale-[0.2]")}
+      whileHover={user && !isOutOfStock ? { y: -8, scale: 1.015, boxShadow: "0 20px 40px rgba(196,155,59,0.08)" } : {}}
+      transition={{ type: "spring", stiffness: 400, damping: 25 }}
+      className={cn(
+        "bg-white rounded-[1.75rem] border border-slate-100/80 overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.015)] flex flex-col h-full group transition-all duration-300 relative", 
+        isOutOfStock && "opacity-60 grayscale-[0.2]"
+      )}
     >
-      {/* 🔹 DISCOUNT BADGE */}
+      {/* 🔹 FLOATING GLASSMORPHISM DISCOUNT BADGE */}
       {hasDiscount && !isOutOfStock && (
-        <div className="absolute top-0 left-0 bg-[#C49B3B] text-white text-[9px] font-black px-2 py-3 rounded-br-[1.2rem] rounded-tl-[1.8rem] z-10 flex flex-col items-center">
+        <div className="absolute top-3 left-3 bg-[#C49B3B] text-white text-[9px] font-black px-2.5 py-1.5 rounded-full z-10 flex items-center gap-1 shadow-md shadow-amber-900/10 border border-white/20">
           <span>{discountPercent}%</span>
-          <span className="text-[7px]">OFF</span>
+          <span className="opacity-75 font-bold">OFF</span>
         </div>
       )}
 
@@ -78,7 +81,7 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
           e.stopPropagation();
           setIsFavorite(!isFavorite);
         }}
-        className="absolute top-4 right-4 z-10 h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-slate-100 flex items-center justify-center shadow-sm active:scale-90 transition-all"
+        className="absolute top-3 right-3 z-10 h-8 w-8 rounded-full bg-white/80 backdrop-blur-sm border border-slate-100 flex items-center justify-center shadow-sm active:scale-90 hover:bg-white transition-all"
       >
         <Heart className={cn("h-4 w-4 transition-colors", isFavorite ? "text-red-500 fill-red-500" : "text-slate-300")} />
       </button>
@@ -98,7 +101,7 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
 
         {isOutOfStock && (
           <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center p-4 text-center pointer-events-none">
-            <span className="text-slate-700 font-black text-[10px] uppercase tracking-widest border border-slate-200 px-2 py-1 rounded-lg bg-white shadow-xl">Out of Stock</span>
+            <span className="text-slate-700 font-black text-[9px] uppercase tracking-widest border border-slate-200/60 px-2.5 py-1.5 rounded-full bg-white shadow-lg">Out of Stock</span>
           </div>
         )}
 
@@ -112,55 +115,57 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
         )}
       </Link>
 
-      <div className="px-4 pb-4 flex flex-col flex-grow">
+      <div className="px-4.5 pb-4.5 flex flex-col flex-grow">
         <Link to={isOutOfStock ? '#' : `/product/${product.id}`} onClick={(e) => isOutOfStock && e.preventDefault()} className="block flex-grow space-y-1">
-          <h3 className="text-sm font-bold text-slate-800 line-clamp-2 leading-tight min-h-[2.5rem]">
+          <h3 className="text-sm font-extrabold text-slate-800 line-clamp-2 leading-tight min-h-[2.5rem] tracking-tight hover:text-[#16A34A] transition-colors">
             {product.name}
           </h3>
-          <p className="text-[10px] font-medium text-slate-400">{product.brand || 'Original 2.25L'}</p>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{product.brand || 'Original'}</p>
           
           {/* 🔹 RATING */}
-          <div className="flex items-center gap-1 py-1">
-            <Star className="h-3.5 w-3.5 text-amber-400 fill-amber-400" />
-            <span className="text-[11px] font-bold text-slate-600">{rating}</span>
-            <span className="text-[11px] font-medium text-slate-400">({reviewsFormatted})</span>
+          <div className="flex items-center gap-1.5 py-1">
+            <div className="flex items-center gap-0.5 bg-amber-50 border border-amber-100 px-1.5 py-0.5 rounded-md">
+              <Star className="h-3 w-3 text-amber-500 fill-amber-500" />
+              <span className="text-[10px] font-black text-amber-700">{rating}</span>
+            </div>
+            <span className="text-[10px] font-bold text-slate-400">({reviewsFormatted})</span>
           </div>
         </Link>
         
         {/* 🔹 PRICE & ADD BUTTON */}
-        <div className="mt-4 flex flex-col gap-3">
-          <div className="flex flex-col gap-1 min-h-[40px] justify-end">
+        <div className="mt-3 flex flex-col gap-2.5">
+          <div className="flex flex-col gap-0.5 min-h-[38px] justify-end">
             {!isOutOfStock && stock_units > 0 && stock_units < 5 && (
-              <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Only few left</span>
+              <span className="text-[9px] font-black text-red-500 uppercase tracking-widest animate-pulse">Only few left</span>
             )}
             {isPriceUnavailable ? (
-              <span className="text-xs font-bold text-slate-500">Price unavailable</span>
+              <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Price unavailable</span>
             ) : (
-              <div className="flex items-baseline gap-2">
-                <span className="text-lg font-black text-slate-900 leading-none">₹{selling_price}</span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-lg font-black text-slate-800 font-sans">₹{selling_price}</span>
                 {hasDiscount && (
-                  <span className="text-[11px] text-slate-300 line-through font-bold">₹{mrp}</span>
+                  <span className="text-xs text-slate-300 line-through font-bold">₹{mrp}</span>
                 )}
               </div>
             )}
           </div>
           
           {isInCart ? (
-            <div className="w-full h-11 rounded-2xl bg-emerald-50 border-2 border-emerald-500/30 flex items-center justify-between p-1 shadow-sm">
+            <div className="w-full h-11 rounded-2xl bg-emerald-50 border border-emerald-500/20 flex items-center justify-between p-1 shadow-sm">
               <button
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   updateQuantity(product.id, currentQty - 1);
                 }}
-                className="h-9 w-9 bg-white rounded-xl flex items-center justify-center text-[#16A34A] shadow-sm active:scale-90 hover:bg-green-100 transition-all"
+                className="h-9 w-9 bg-white rounded-xl flex items-center justify-center text-[#16A34A] shadow-sm active:scale-90 hover:bg-emerald-100/50 transition-all border border-slate-100"
               >
-                <Minus className="h-4 w-4" />
+                <Minus className="h-4 w-4 stroke-[2.5px]" />
               </button>
               
               <div className="flex flex-col items-center justify-center flex-grow">
-                <span className="text-xs font-black text-[#16A34A] leading-none">{currentQty}</span>
-                <span className="text-[7px] font-black uppercase text-[#16A34A] tracking-wider mt-0.5 flex items-center gap-0.5">
+                <span className="text-xs font-black text-emerald-800 leading-none">{currentQty}</span>
+                <span className="text-[7px] font-black uppercase text-emerald-600 tracking-widest mt-0.5 flex items-center gap-0.5">
                   <Check className="h-2 w-2 stroke-[3px]" /> Added
                 </span>
               </div>
@@ -173,7 +178,7 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
                 }}
                 className="h-9 w-9 bg-[#16A34A] rounded-xl flex items-center justify-center text-white shadow-sm active:scale-90 hover:bg-green-700 transition-all"
               >
-                <Plus className="h-4 w-4" />
+                <Plus className="h-4 w-4 stroke-[2.5px]" />
               </button>
             </div>
           ) : (
@@ -181,20 +186,20 @@ export const ProductCard = React.memo<ProductCardProps>(({ product }) => {
               onClick={handleAddClick}
               disabled={isOutOfStock || isPriceUnavailable || (!!pincode && !isServiceable)}
               className={cn(
-                "w-full h-11 rounded-2xl flex items-center group/btn transition-all active:scale-95 overflow-hidden",
+                "w-full h-11 rounded-full flex items-center group/btn transition-all active:scale-95 overflow-hidden border border-[#C49B3B]/20",
                 isOutOfStock 
-                  ? "bg-slate-100 cursor-not-allowed" 
-                  : "bg-[#C49B3B] shadow-lg shadow-amber-900/10 hover:bg-slate-900 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none"
+                  ? "bg-slate-100 cursor-not-allowed border-none" 
+                  : "bg-white shadow-sm hover:bg-[#C49B3B] hover:text-white hover:shadow-lg hover:shadow-amber-900/10 disabled:bg-slate-100 disabled:text-slate-300 disabled:shadow-none"
               )}
             >
               <div className="flex-grow flex items-center justify-center pl-4">
-                <span className={cn("text-[11px] font-black uppercase tracking-widest", isOutOfStock ? "text-slate-400" : "text-white")}>
+                <span className={cn("text-[11px] font-black uppercase tracking-widest transition-colors", isOutOfStock ? "text-slate-400" : "text-[#C49B3B] group-hover/btn:text-white")}>
                   {isOutOfStock ? 'UNAVAILABLE' : 'ADD'}
                 </span>
               </div>
               {!isOutOfStock && (
-                <div className="h-9 w-9 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center mr-1 text-white">
-                  <Plus className="h-5 w-5" />
+                <div className="h-9 w-9 bg-amber-50 group-hover/btn:bg-white/20 rounded-full flex items-center justify-center mr-1 text-[#C49B3B] group-hover/btn:text-white transition-colors">
+                  <Plus className="h-4 w-4 stroke-[3px]" />
                 </div>
               )}
             </button>

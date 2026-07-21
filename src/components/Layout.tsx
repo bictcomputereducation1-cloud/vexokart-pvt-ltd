@@ -35,7 +35,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
-      {!isSplash && !isCheckoutPage && !isCartPage && !isOrderSuccessPage && !isOnboardingPage && !isCategories && !isProductPage && !isCategoryListing && !isDeliveryRoute && !isVendorRoute && (
+      {!isSplash && !isCheckoutPage && !isCartPage && !isOrderSuccessPage && !isOnboardingPage && !isCategories && !isProductPage && !isCategoryListing && !isDeliveryRoute && !isVendorRoute && !isHome && (
         <Navbar onMenuClick={() => setIsSidebarOpen(true)} />
       )}
       <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
@@ -65,35 +65,34 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <AnimatePresence>
         {showFloatingCart && (
           <motion.div
-            initial={{ y: 50, opacity: 0, scale: 0.95 }}
+            initial={{ y: 80, opacity: 0, scale: 0.95 }}
             animate={{ y: 0, opacity: 1, scale: 1 }}
-            exit={{ y: 50, opacity: 0, scale: 0.95 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-            className="fixed bottom-28 left-6 right-6 z-40 max-w-md mx-auto pointer-events-auto"
+            exit={{ y: 80, opacity: 0, scale: 0.95 }}
+            transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+            className="fixed bottom-28 left-0 right-0 z-40 flex justify-center pointer-events-none"
           >
             <div 
               onClick={() => navigate('/cart')}
-              className="bg-[#16A34A] text-white rounded-[2rem] p-4 shadow-[0_15px_35px_rgba(22,163,74,0.35)] flex items-center justify-between cursor-pointer active:scale-[0.98] transition-transform duration-200 border border-green-500"
+              className="w-[82%] max-w-[340px] bg-emerald-950/90 hover:bg-emerald-900/95 text-white backdrop-blur-xl rounded-full px-4 shadow-[0_16px_40px_rgba(22,163,74,0.22)] flex items-center justify-between cursor-pointer active:scale-[0.97] transition-all duration-300 border border-emerald-500/20 h-13 pointer-events-auto"
             >
-              <div className="flex items-center gap-3">
-                <div className="bg-white/20 h-10 w-10 rounded-xl flex items-center justify-center text-white">
-                  <ShoppingBag className="h-5 w-5" />
-                </div>
-                <div className="flex flex-col text-left">
-                  <span className="text-xs font-black tracking-tight uppercase text-green-100">
+              <div className="flex items-center gap-2">
+                <span className="text-sm select-none">🛒</span>
+                <div className="flex items-center gap-1.5 text-xs">
+                  <span className="font-extrabold text-white tracking-tight">
                     {totalItems} {totalItems === 1 ? 'Item' : 'Items'}
                   </span>
-                  <span className="text-lg font-black leading-none italic">
+                  <span className="text-emerald-500/40">|</span>
+                  <span className="font-black text-emerald-400 font-mono">
                     ₹{totalPrice}
                   </span>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 bg-white/20 hover:bg-white/30 px-4 py-2.5 rounded-full transition-colors">
-                <span className="text-[10px] font-black uppercase tracking-widest">
+              <div className="flex items-center justify-center gap-1 bg-[#C49B3B] hover:bg-[#b58e32] px-3 h-8 w-[92px] rounded-full shadow-md shadow-amber-900/10 transition-all">
+                <span className="text-[9px] font-black uppercase tracking-wider text-white">
                   View Cart
                 </span>
-                <ArrowRight className="h-3.5 w-3.5" />
+                <ArrowRight className="h-2.5 w-2.5 stroke-[3px]" />
               </div>
             </div>
           </motion.div>

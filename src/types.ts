@@ -165,6 +165,7 @@ export interface Banner {
   id: string;
   title: string | null;
   image_url: string;
+  video_url?: string | null;
   link_url: string | null;
   is_active: boolean;
   display_order: number;

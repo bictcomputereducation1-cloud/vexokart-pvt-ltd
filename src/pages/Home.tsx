@@ -18,7 +18,8 @@ import {
   CreditCard,
   Trash2,
   Briefcase,
-  Building2
+  Building2,
+  Heart
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useDeliveryLocation } from '../LocationContext';
@@ -31,6 +32,8 @@ import { fetchLiveAndInStockProducts } from '../lib/productFetcher';
 import { MOCK_CATEGORIES, MOCK_BANNERS } from '../lib/defaultData';
 import { LocationPicker } from '../components/LocationPicker';
 import { toast } from 'sonner';
+import { PremiumVideoBanner } from '../components/PremiumVideoBanner';
+import { SaleCampaigns } from '../components/SaleCampaigns';
 
 const featureStrip = [
   { icon: Star, label: "Best Quality", sub: "Premium Products", color: "text-amber-500", bg: "bg-amber-50" },
@@ -70,6 +73,14 @@ export default function Home() {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSlide, setCurrentSlide] = useState(0);
+
+  const getGreeting = () => {
+    const hr = new Date().getHours();
+    if (hr >= 5 && hr < 12) return "Good Morning ☀️";
+    if (hr >= 12 && hr < 17) return "Good Afternoon 🌤️";
+    if (hr >= 17 && hr < 21) return "Good Evening 🌙";
+    return "Good Night 🌙";
+  };
 
   // Address System States
   const [addresses, setAddresses] = useState<any[]>([]);
@@ -366,6 +377,29 @@ export default function Home() {
         console.error("[Home] Exception fetching banners, using mocks:", e);
         currentBanners = MOCK_BANNERS;
       }
+
+      // Merge with stored extra fields and filter based on scheduling dates
+      try {
+        const extraDataRaw = localStorage.getItem('vexo_banners_extra');
+        const extra = extraDataRaw ? JSON.parse(extraDataRaw) : {};
+        const now = new Date();
+
+        currentBanners = currentBanners.map(b => ({
+          ...b,
+          video_url: b.video_url || extra[b.id]?.video_url || '',
+          start_date: (b as any).start_date || extra[b.id]?.start_date || '',
+          end_date: (b as any).end_date || extra[b.id]?.end_date || ''
+        })).filter(b => {
+          const start = (b as any).start_date;
+          const end = (b as any).end_date;
+          if (start && new Date(start) > now) return false;
+          if (end && new Date(end) < now) return false;
+          return true;
+        });
+      } catch (e) {
+        console.error("Error scheduling filters:", e);
+      }
+
       setBanners(currentBanners);
 
       // 2. Fetch Categories
@@ -454,7 +488,7 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen pb-32 bg-[#FAF9F6]">
+    <div className="min-h-screen pb-32 bg-[#FAFAF8]">
 
       {/* 🔹 ADDRESS MANAGEMENT MODAL */}
       <AnimatePresence>
@@ -644,309 +678,413 @@ export default function Home() {
                   />
                   <div className="grid grid-cols-2 gap-3">
                     <input 
-                      required
-                      placeholder="City"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-xs font-bold focus:bg-white focus:border-[#16A34A] outline-none transition-all"
-                      value={addressForm.city}
-                      onChange={e => setAddressForm(f => ({ ...f, city: e.target.value }))}
-                    />
-                    <input 
-                      required
-                      placeholder="Pincode"
-                      className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-xs font-bold focus:bg-white focus:border-[#16A34A] outline-none transition-all"
-                      value={addressForm.pincode}
-                      onChange={e => setAddressForm(f => ({ ...f, pincode: e.target.value }))}
-                    />
-                  </div>
-                </div>
-
-                {/* Default address toggle */}
-                <div className="flex items-center gap-2 py-1">
-                  <input
-                    type="checkbox"
-                    id="is_default"
-                    className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-200"
-                    checked={addressForm.is_default}
-                    onChange={e => setAddressForm(f => ({ ...f, is_default: e.target.checked }))}
+                    required
+                    placeholder="City"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-xs font-bold focus:bg-white focus:border-[#16A34A] outline-none transition-all"
+                    value={addressForm.city}
+                    onChange={e => setAddressForm(f => ({ ...f, city: e.target.value }))}
                   />
-                  <label htmlFor="is_default" className="text-xs font-bold text-slate-500 uppercase tracking-wide cursor-pointer select-none">
-                    Set as default delivery address
-                  </label>
+                  <input 
+                    required
+                    placeholder="Pincode"
+                    className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3.5 text-xs font-bold focus:bg-white focus:border-[#16A34A] outline-none transition-all"
+                    value={addressForm.pincode}
+                    onChange={e => setAddressForm(f => ({ ...f, pincode: e.target.value }))}
+                  />
                 </div>
+              </div>
 
-                {/* Submit */}
-                <button 
-                  type="submit"
-                  className="w-full h-12 bg-[#16A34A] text-white rounded-xl font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-emerald-900/10 hover:bg-green-700 active:scale-95 transition-all mt-2"
-                >
-                  Save and Deliver Here
-                </button>
-              </form>
-            </motion.div>
+              {/* Default address toggle */}
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="is_default"
+                  className="h-4 w-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-200"
+                  checked={addressForm.is_default}
+                  onChange={e => setAddressForm(f => ({ ...f, is_default: e.target.checked }))}
+                />
+                <label htmlFor="is_default" className="text-xs font-bold text-slate-500 uppercase tracking-wide cursor-pointer select-none">
+                  Set as default delivery address
+                </label>
+              </div>
+
+              {/* Submit */}
+              <button 
+                type="submit"
+                className="w-full h-12 bg-[#16A34A] text-white rounded-xl font-black uppercase text-xs tracking-[0.2em] shadow-lg shadow-emerald-900/10 hover:bg-green-700 active:scale-95 transition-all mt-2"
+              >
+                Save and Deliver Here
+              </button>
+            </form>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
+
+    {/* 📍 PREMIUM STICKY HEADER */}
+    <div className="sticky top-0 z-30 max-w-md mx-auto w-full px-4 pt-4 pb-3">
+      <div className="bg-gradient-to-b from-white/95 to-slate-50/90 backdrop-blur-xl border border-white/45 rounded-[22px] shadow-[0_12px_40px_rgba(0,0,0,0.03)] p-4 flex flex-col gap-3">
+        {/* Top Row: Greeting & Profile Avatar */}
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col text-left">
+            <span className="text-[10px] font-black text-[#C49B3B] uppercase tracking-widest leading-none mb-1">
+              {getGreeting()}
+            </span>
+            <span className="text-lg font-black text-slate-900 tracking-tight leading-none">
+              {user ? (profile?.name || (profile as any)?.full_name || 'Guest') : 'Guest'}
+            </span>
           </div>
-        )}
-      </AnimatePresence>
-
-      {/* 🔹 LOGO & TAGLINE */}
-      <div className="pt-6 pb-4 flex flex-col items-center">
-         <div className="flex items-center gap-2">
-            <div className="relative mr-2">
-               <div className="absolute top-1/2 -left-4 -translate-y-1/2 flex flex-col gap-1.5 opacity-60">
-                  <div className="h-1 w-3 bg-[#C49B3B] rounded-full" />
-                  <div className="h-1 w-5 bg-[#C49B3B] rounded-full" />
-                  <div className="h-1 w-2 bg-[#C49B3B] rounded-full" />
-               </div>
-               <ShoppingCart className="h-9 w-9 text-[#C49B3B] fill-[#C49B3B]/5" />
+          
+          {/* Circular Profile Avatar */}
+          <div 
+            onClick={() => navigate('/account')}
+            className="h-10 w-10 rounded-full bg-gradient-to-tr from-[#C49B3B] to-amber-200 p-[2px] shadow-md shadow-amber-900/10 cursor-pointer active:scale-95 transition-all"
+          >
+            <div className="h-full w-full rounded-full bg-white flex items-center justify-center font-black text-xs text-[#C49B3B]">
+              {user ? ((profile?.name || (profile as any)?.full_name || 'Guest').substring(0, 2).toUpperCase()) : 'G'}
             </div>
-            <h1 className="text-5xl font-black tracking-tighter text-slate-900 logo-font">
-               Vexo<span className="text-[#C49B3B]">Kart</span>
-            </h1>
-         </div>
-         <div className="flex items-center gap-2 mt-1">
-            <div className="h-[1px] w-4 bg-[#C49B3B]/40" />
-            <span className="text-[10px] font-black text-[#C49B3B] uppercase tracking-[0.2em]">Smart Shopping, Easy Living</span>
-            <div className="h-[1px] w-4 bg-[#C49B3B]/40" />
-         </div>
-      </div>
+          </div>
+        </div>
 
-      {/* 🔹 SEARCH BAR */}
-      <div className="px-4 mb-8">
-        <div 
-          onClick={() => navigate('/search')}
-          className="relative cursor-pointer group"
-        >
-          <div className="flex items-center gap-4 h-14 px-6 bg-white rounded-2xl border border-slate-100 shadow-xl shadow-slate-200/40 transition-all active:scale-[0.98]">
-            <SearchIcon className="h-5 w-5 text-slate-400" />
-            <span className="text-sm text-slate-400 font-bold tracking-tight">Search for products, brands and more...</span>
-            <div className="ml-auto h-8 w-[1px] bg-slate-100 mx-1" />
-            <Mic className="h-5 w-5 text-[#C49B3B]" />
+        {/* Second Row: Delivery Location & Quick Action Icons */}
+        <div className="flex items-center justify-between gap-3 pt-1 border-t border-slate-100/50">
+          {/* Large Delivery Location Card */}
+          <div 
+            onClick={() => setAddressModalOpen(true)}
+            className="flex items-center gap-2 flex-grow min-w-0 bg-slate-50/80 hover:bg-slate-100/60 border border-slate-100/70 rounded-xl px-3 py-2 cursor-pointer transition-all duration-200 active:scale-98"
+          >
+            <div className="h-7 w-7 rounded-lg bg-emerald-500/10 flex items-center justify-center text-emerald-600 flex-shrink-0 border border-emerald-500/10">
+              <MapPin className="h-3.5 w-3.5" />
+            </div>
+            <div className="flex flex-col text-left min-w-0 flex-grow">
+              <span className="text-[8px] font-black uppercase text-emerald-700 tracking-wider leading-none mb-0.5">Deliver To</span>
+              <span className="text-xs font-bold text-slate-700 truncate leading-tight flex items-center gap-1">
+                {selectedAddress ? getAddressLabelAndText(selectedAddress.full_address).text : 'Set Delivery Location'}
+              </span>
+            </div>
+            <ChevronDown className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+          </div>
+
+          {/* Quick Actions: Wishlist and Notification */}
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {/* Wishlist (Heart Icon) */}
+            <button 
+              onClick={() => navigate('/categories')} 
+              className="relative h-9 w-9 bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100/50 rounded-xl flex items-center justify-center text-slate-600 active:scale-90 transition-all"
+            >
+              <Heart className="h-4 w-4 text-rose-500 fill-rose-500/10" />
+            </button>
+
+            {/* Notification */}
+            <button className="relative h-9 w-9 bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100/50 rounded-xl flex items-center justify-center text-slate-600 active:scale-90 transition-all">
+              <Bell className="h-4 w-4" />
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-emerald-500 rounded-full animate-ping" />
+              <span className="absolute top-1.5 right-1.5 h-1.5 w-1.5 bg-emerald-500 rounded-full" />
+            </button>
           </div>
         </div>
       </div>
+    </div>
 
-      {/* 🔹 HERO BANNER */}
-      <div className="px-4 mb-8">
-        <div 
-          onClick={() => {
-            if (banners.length === 0) return;
-            const safeSlide = currentSlide % banners.length;
-            const activeBanner = banners[safeSlide];
-            if (activeBanner?.link_url) {
-              navigate(activeBanner.link_url);
-            } else {
-              navigate('/categories');
-            }
-          }}
-          className="relative aspect-[335/200] w-full rounded-[2.5rem] bg-amber-50 overflow-hidden border border-white shadow-xl shadow-amber-900/5 group cursor-pointer"
+    {/* 🔹 PREMIUM FLOATING SEARCH BAR */}
+    <div className="px-4 mt-2 mb-6">
+      <div 
+        onClick={() => navigate('/search')}
+        className="relative max-w-md mx-auto group cursor-pointer"
+      >
+        <motion.div 
+          whileHover={{ scale: 1.01 }}
+          whileTap={{ scale: 0.99 }}
+          className="flex items-center gap-4 h-14 px-5 bg-white rounded-[18px] border border-slate-100/80 shadow-[0_12px_30px_rgba(0,0,0,0.02)] group-hover:shadow-[0_16px_35px_rgba(196,155,59,0.05)] group-hover:border-[#C49B3B]/20 transition-all duration-300"
         >
+          <SearchIcon className="h-4.5 w-4.5 text-[#C49B3B]" />
+          <span className="text-xs text-slate-400 font-semibold tracking-tight flex-grow text-left">
+            Search fresh grocery, drinks & more...
+          </span>
+          <div className="ml-auto h-5 w-[1px] bg-slate-100 mx-1" />
+          <div className="h-8 w-8 rounded-xl bg-amber-50/50 flex items-center justify-center group-hover:bg-amber-100/50 transition-colors">
+            <Mic className="h-4 w-4 text-[#C49B3B]" />
+          </div>
+        </motion.div>
+      </div>
+    </div>
+
+    {/* 🔹 HERO BANNER SLIDESHOW */}
+    <div className="px-4 mb-8">
+      <div className="max-w-md mx-auto relative aspect-[335/205] w-full rounded-[28px] overflow-hidden border border-white shadow-[0_16px_40px_rgba(0,0,0,0.03)] bg-slate-50">
+        <AnimatePresence mode="wait">
           {banners.length > 0 && banners.map((banner, index) => {
             const safeSlide = currentSlide % banners.length;
+            if (index !== safeSlide) return null;
+            
+            // If the banner contains a valid video URL, load it using PremiumVideoBanner
+            if (banner.video_url) {
+              return (
+                <motion.div
+                  key={banner.id}
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.04 }}
+                  transition={{ type: "spring", stiffness: 180, damping: 22 }}
+                  className="absolute inset-0"
+                >
+                  <PremiumVideoBanner banner={banner} />
+                </motion.div>
+              );
+            }
+
             return (
-              <div 
+              <motion.div 
                 key={banner.id}
-                className={cn(
-                  "absolute inset-0 transition-opacity duration-1000",
-                  index === safeSlide ? "opacity-100" : "opacity-0"
-                )}
+                initial={{ opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 1.04 }}
+                transition={{ type: "spring", stiffness: 180, damping: 22 }}
+                className="absolute inset-0 cursor-pointer"
+                onClick={() => {
+                  if (banner.link_url) {
+                    navigate(banner.link_url);
+                  } else {
+                    navigate('/categories');
+                  }
+                }}
               >
-                {/* Image filling the container */}
-                <img 
-                  src={banner.image_url} 
-                  alt={banner.title} 
-                  className="absolute inset-0 w-full h-full object-cover" 
-                />
-                
-                {/* Gradient Overlay for text readability if needed */}
-                <div className="absolute inset-0 bg-gradient-to-r from-black/60 to-transparent" />
-                
-                {/* Content */}
-                <div className="absolute inset-0 p-6 flex flex-col justify-center z-10 w-[70%]">
-                  <h2 className="text-2xl md:text-4xl font-black text-white leading-[1.1] tracking-tighter mb-4">
-                    {banner.title}
+                <motion.div 
+                  initial={{ scale: 1.12, y: 5 }}
+                  animate={{ scale: 1, y: 0 }}
+                  transition={{ duration: 4.5, ease: "easeOut" }}
+                  className="absolute inset-0 w-full h-full"
+                >
+                  <img 
+                    src={banner.image_url} 
+                    alt={banner.title} 
+                    className="w-full h-full object-cover" 
+                  />
+                </motion.div>
+                {/* Luxury soft gradient overlay */}
+                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/30 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6 flex flex-col justify-end z-10 text-left">
+                  <span className="text-[8px] font-black uppercase tracking-[0.25em] text-[#C49B3B] bg-amber-500/10 backdrop-blur-md px-3 py-1 rounded-full w-fit mb-2 border border-amber-500/10 shadow-sm animate-pulse">
+                    Vexo Premium Selection
+                  </span>
+                  <h2 className="text-xl font-black text-white leading-tight tracking-tight mb-1 drop-shadow-md">
+                    {banner.title || "Fresh Grocery Delivered Fast"}
                   </h2>
-                  <button 
-                    className="w-fit bg-[#C49B3B] text-white px-5 py-2 md:px-6 md:py-2.5 rounded-full font-black uppercase tracking-widest text-[9px] md:text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-lg shadow-amber-900/20"
+                  <p className="text-[9px] text-white/60 font-black tracking-widest uppercase mb-3.5">
+                    Big Savings Every Day • Explore Now
+                  </p>
+                  <motion.button 
+                    whileHover={{ scale: 1.03 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="w-fit bg-emerald-600 hover:bg-[#C49B3B] text-white px-5 py-2.5 rounded-xl font-black uppercase tracking-widest text-[9px] flex items-center gap-1.5 transition-all shadow-lg shadow-emerald-950/20 active:scale-95 border border-emerald-500/20"
                   >
-                    Shop Now <ArrowRight className="h-3 w-3" />
-                  </button>
+                    Shop Now <ArrowRight className="h-3 w-3 stroke-[2.5px]" />
+                  </motion.button>
                 </div>
-              </div>
+              </motion.div>
             );
           })}
+        </AnimatePresence>
 
-          {/* Dots Indicator */}
-          {banners.length > 1 && (
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-20">
-              {banners.map((_, idx) => (
+        {/* Indicators */}
+        {banners.length > 1 && (
+          <div className="absolute bottom-4 right-6 flex items-center gap-1.5 z-20">
+            {banners.map((_, idx) => {
+              const safeSlide = currentSlide % banners.length;
+              return (
                 <div 
                   key={idx}
                   className={cn(
-                    "h-1.5 rounded-full transition-all duration-300",
-                    idx === (currentSlide % banners.length) ? "w-4 bg-[#C49B3B]" : "w-1.5 bg-white/50"
+                    "h-1 transition-all duration-300",
+                    idx === safeSlide ? "w-6 bg-[#C49B3B]" : "w-1.5 bg-white/40 rounded-full"
                   )}
                 />
-              ))}
-            </div>
-          )}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
+    </div>
 
-      {/* 🔹 FEATURES STRIP */}
-      <div className="px-4 mb-10 overflow-x-auto no-scrollbar">
-        <div className="flex gap-4 min-w-max pb-2">
-          {featureStrip.map((item, idx) => (
-            <div key={idx} className="bg-white rounded-[1.5rem] p-4 flex items-center gap-3 border border-slate-50 shadow-sm min-w-[160px]">
-              <div className={cn("h-12 w-12 rounded-xl flex items-center justify-center border border-white shadow-sm", item.bg)}>
-                <item.icon className={cn("h-5 w-5", item.color)} />
-              </div>
-              <div className="flex flex-col">
-                <span className="text-[10px] font-black text-slate-900 leading-tight">{item.label}</span>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{item.sub}</span>
-              </div>
+    {/* 🔹 SALE CAMPAIGNS */}
+    <SaleCampaigns />
+
+    {/* 🔹 FEATURES STRIP */}
+    <div className="px-4 mb-10 overflow-x-auto no-scrollbar">
+      <div className="max-w-md mx-auto flex gap-4 min-w-max pb-2">
+        {featureStrip.map((item, idx) => (
+          <div key={idx} className="bg-white rounded-[1.5rem] p-4 flex items-center gap-3 border border-slate-100/50 shadow-[0_4px_15px_rgba(0,0,0,0.01)] min-w-[160px]">
+            <div className={cn("h-11 w-11 rounded-full flex items-center justify-center border border-white shadow-inner", item.bg)}>
+              <item.icon className={cn("h-4.5 w-4.5", item.color)} />
             </div>
-          ))}
-        </div>
+            <div className="flex flex-col text-left">
+              <span className="text-[10px] font-black text-slate-800 leading-tight">{item.label}</span>
+              <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{item.sub}</span>
+            </div>
+          </div>
+        ))}
       </div>
+    </div>
 
-      {/* 🔹 CATEGORY GRID */}
-      <div className="px-4 mb-10">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-slate-800 tracking-tight">Shop by Category</h3>
-          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1">
-            See All <ChevronRight className="h-4 w-4" />
+    {/* 🔹 CATEGORY GRID */}
+    <div className="px-4 mb-10">
+      <div className="max-w-md mx-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.15em]">
+            Curated Collections
+          </h3>
+          <button 
+            onClick={() => navigate('/categories')} 
+            className="text-xs font-black text-[#C49B3B] flex items-center gap-0.5 hover:opacity-85 transition-opacity"
+          >
+            See All <ChevronRight className="h-3.5 w-3.5" />
           </button>
         </div>
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-4 gap-3">
           {categories.slice(0, 8).map((cat: any) => (
             <motion.div
               key={cat.id}
-              whileTap={{ scale: 0.96 }}
+              whileHover={{ y: -4, scale: 1.02 }}
+              whileTap={{ scale: 0.95 }}
               onClick={() => navigate(`/category/${cat.slug}`)}
-              className="flex flex-col items-center gap-2 cursor-pointer group"
+              className="flex flex-col items-center gap-1.5 cursor-pointer group"
             >
-              <div className="h-16 w-16 bg-white rounded-3xl flex items-center justify-center p-3 shadow-md border border-slate-100 transition-all group-hover:shadow-amber-100 group-hover:border-amber-100">
+              <div className="h-16 w-16 bg-white rounded-2xl flex items-center justify-center p-3 shadow-[0_8px_20px_rgba(0,0,0,0.015)] border border-slate-100/80 group-hover:border-[#C49B3B]/30 group-hover:shadow-[0_12px_24px_rgba(196,155,59,0.06)] transition-all duration-300 relative overflow-hidden">
+                <div className="absolute inset-0 bg-amber-500/0 group-hover:bg-amber-500/5 transition-colors duration-300" />
                 <img 
                   src={cat.image_url || ''} 
                   alt={cat.name} 
                   className="w-full h-full object-contain filter group-hover:scale-110 transition-transform duration-500" 
                 />
               </div>
-              <span className="text-[10px] font-bold text-slate-700 text-center leading-tight">
+              <span className="text-[10px] font-black text-slate-600 text-center leading-tight group-hover:text-slate-900 group-hover:font-extrabold transition-colors">
                 {cat.name}
               </span>
             </motion.div>
           ))}
         </div>
       </div>
+    </div>
 
-      {/* 🔹 BEST SELLERS */}
-      <div className="mb-10">
-        <div className="px-4 flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-slate-800 tracking-tight">Best Sellers</h3>
-          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1">
-            See All <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
+    {/* 🔹 BEST SELLERS */}
+    <div className="mb-10">
+      <div className="max-w-md mx-auto">
+        <div className="px-4 flex items-center justify-between mb-4">
+          <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+            Best Sellers
+          </h3>
+          <button onClick={() => navigate('/categories')} className="text-xs font-black text-[#C49B3B] flex items-center gap-0.5">
+            See All <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
 
-        <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
-          {bestSellers.length > 0 ? (
-            bestSellers.map(p => (
-              <div key={p.id} className="min-w-[170px] max-w-[170px]">
-                <ProductCard product={p} />
+          <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
+            {bestSellers.length > 0 ? (
+              bestSellers.map(p => (
+                <div key={p.id} className="min-w-[170px] max-w-[170px]">
+                  <ProductCard product={p} />
+                </div>
+              ))
+            ) : (
+              <div className="w-full text-center py-8 bg-white/50 rounded-2xl border border-dashed border-slate-200 text-xs font-black uppercase text-slate-400 tracking-widest p-6 mx-4">
+                No products available
               </div>
-            ))
-          ) : (
-            <div className="w-full text-center py-8 bg-white/50 rounded-2xl border border-dashed border-slate-200 text-xs font-black uppercase text-slate-400 tracking-widest p-6 mx-4">
-              No products available
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
       {/* 🔹 DEAL OF THE DAY */}
       <div className="mb-10">
-        <div className="px-4 flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-             <h3 className="text-xl font-bold text-slate-800 tracking-tight">Top Deals for You</h3>
-             <div className="flex items-center gap-1.5 bg-amber-50 text-amber-700 px-3 py-1.5 rounded-full border border-amber-100">
-               <Clock className="h-3.5 w-3.5" />
-               <span className="text-[11px] font-bold">02 : 45 : 12 Left</span>
-             </div>
-          </div>
-          <button onClick={() => navigate('/categories')} className="text-xs font-bold text-[#C49B3B] flex items-center gap-1">
-            See All <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
-          {bestSellers.length > 0 ? (
-            bestSellers.slice().reverse().map(p => (
-              <div key={p.id} className="min-w-[170px] max-w-[170px]">
-                <ProductCard product={p} />
+        <div className="max-w-md mx-auto">
+          <div className="px-4 flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest">
+                Top Deals for You
+              </h3>
+              <div className="flex items-center gap-1 bg-amber-500/10 text-[#C49B3B] px-2.5 py-1 rounded-full border border-amber-500/10 shadow-sm">
+                <Clock className="h-3 w-3 animate-pulse" />
+                <span className="text-[9px] font-black uppercase tracking-wider">02:45:12 Left</span>
               </div>
-            ))
-          ) : (
-            <div className="w-full text-center py-8 bg-white/50 rounded-2xl border border-dashed border-slate-200 text-xs font-black uppercase text-slate-400 tracking-widest p-6 mx-4">
-              No products available
             </div>
-          )}
+            <button onClick={() => navigate('/categories')} className="text-xs font-black text-[#C49B3B] flex items-center gap-0.5">
+              See All <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <div className="flex gap-4 overflow-x-auto px-4 pb-6 no-scrollbar">
+            {bestSellers.length > 0 ? (
+              bestSellers.slice().reverse().map(p => (
+                <div key={p.id} className="min-w-[170px] max-w-[170px]">
+                  <ProductCard product={p} />
+                </div>
+              ))
+            ) : (
+              <div className="w-full text-center py-8 bg-white/50 rounded-2xl border border-dashed border-slate-200 text-xs font-black uppercase text-slate-400 tracking-widest p-6 mx-4">
+                No products available
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* 🔹 GOLD SAVINGS BANNER */}
-      <div className="px-4 mb-2">
-        <div className="relative h-[160px] rounded-[2.5rem] overflow-hidden group shadow-xl">
-           <div className="absolute inset-0 bg-[#FDF5E6]" />
-           {/* Decorative shapes */}
-           <div className="absolute -right-20 -top-20 h-60 w-60 bg-amber-200/40 rounded-full blur-3xl" />
-           <div className="absolute -left-10 -bottom-10 h-40 w-40 bg-amber-400/20 rounded-full blur-2xl" />
-           
-           <div className="relative h-full flex items-center px-8">
-              <div className="flex flex-col items-center mr-8">
-                 <Star className="h-6 w-6 text-[#C49B3B] mb-1" />
-                 <span className="text-xl font-black text-[#C49B3B] leading-none mb-0.5 uppercase tracking-tighter text-center">Gold<br/>Savings</span>
+      <div className="px-4 mb-8">
+        <div className="max-w-md mx-auto relative h-[150px] rounded-[2rem] overflow-hidden shadow-[0_12px_35px_rgba(196,155,59,0.12)] border border-amber-200/20">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#FCF7ED] via-[#FDF5E6] to-[#F3E5D0]" />
+          
+          {/* Decorative luxury shapes */}
+          <div className="absolute -right-16 -top-16 h-48 w-48 bg-amber-400/20 rounded-full blur-2xl" />
+          <div className="absolute -left-10 -bottom-10 h-36 w-36 bg-amber-600/10 rounded-full blur-xl" />
+          
+          <div className="relative h-full flex items-center px-6">
+            <div className="flex flex-col items-center mr-6">
+              <div className="h-11 w-11 rounded-full bg-[#C49B3B]/10 flex items-center justify-center border border-[#C49B3B]/20 mb-1">
+                <Star className="h-5 w-5 text-[#C49B3B] fill-[#C49B3B]" />
               </div>
-              
-              <div className="flex flex-col">
-                 <h3 className="text-lg font-bold text-slate-800 leading-tight mb-2">Exclusive Offers<br/>For You</h3>
-                 <button className="bg-[#C49B3B] text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest w-fit shadow-lg shadow-amber-900/20 active:scale-95 transition-all">
-                    View Offers
-                 </button>
-              </div>
+              <span className="text-xs font-black text-[#C49B3B] uppercase tracking-wider text-center leading-tight">Vexo<br/>Savings</span>
+            </div>
+            
+            <div className="flex flex-col text-left">
+              <h3 className="text-base font-extrabold text-slate-800 leading-tight mb-2">Exclusive Offers<br/>Designed For You</h3>
+              <button className="bg-[#C49B3B] hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest w-fit shadow-md shadow-amber-900/10 transition-colors active:scale-95">
+                View Offers
+              </button>
+            </div>
 
-              <div className="ml-auto w-1/3 flex justify-end">
-                  <div className="relative h-24 w-24">
-                     <div className="absolute inset-0 bg-white rounded-2xl rotate-12 shadow-md" />
-                     <div className="absolute inset-0 bg-[#C49B3B] rounded-2xl -rotate-6 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden">
-                        <img 
-                          src="https://images.unsplash.com/photo-1549463591-24c1882bd396?auto=format&fit=crop&q=80&w=300"
-                          alt="gift"
-                          className="w-full h-full object-cover"
-                        />
-                     </div>
-                  </div>
+            <div className="ml-auto w-1/4 flex justify-end">
+              <div className="relative h-20 w-20">
+                <div className="absolute inset-0 bg-white rounded-2xl rotate-12 shadow-sm border border-slate-100/50" />
+                <div className="absolute inset-0 bg-[#C49B3B] rounded-2xl -rotate-6 flex items-center justify-center border-2 border-white shadow-md overflow-hidden">
+                  <img 
+                    src="https://images.unsplash.com/photo-1549463591-24c1882bd396?auto=format&fit=crop&q=80&w=300"
+                    alt="gift"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               </div>
-           </div>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* 🔹 PROMO BANNER 2 (Drinks) */}
       <div className="px-4 mb-4">
-        <div className="relative h-[180px] rounded-[2.5rem] bg-gradient-to-br from-[#E6F8E9] to-[#F7FEF8] border border-white shadow-2xl shadow-green-900/5 overflow-hidden group">
-          <div className="absolute inset-0 p-8 flex flex-col justify-center">
-             <span className="text-[#16A34A] text-[10px] font-black uppercase tracking-widest mb-2 bg-white/60 w-fit px-3 py-1.5 rounded-full border border-green-50">Summer Special</span>
-             <h3 className="text-2xl font-black text-slate-800 leading-tight mb-1">Cool & Refreshing Drinks</h3>
-             <p className="text-green-600 text-sm font-bold mb-4">Up to 30% OFF</p>
-             <button className="bg-[#16A34A] text-white w-fit px-6 py-2.5 rounded-xl font-black uppercase tracking-widest text-[10px] flex items-center gap-2 active:scale-95 transition-all shadow-xl shadow-green-900/10">
-                Shop Now <ArrowRight className="h-3 w-3" />
-             </button>
+        <div className="max-w-md mx-auto relative h-[170px] rounded-[2rem] bg-gradient-to-br from-[#E8F5E9] via-[#F1F8F5] to-white border border-green-100 shadow-[0_12px_30px_rgba(22,163,74,0.03)] overflow-hidden group">
+          <div className="absolute inset-0 p-6 flex flex-col justify-center text-left">
+            <span className="text-emerald-700 text-[8px] font-black uppercase tracking-widest mb-1.5 bg-emerald-100/60 w-fit px-2.5 py-1 rounded-full border border-emerald-200/20">Summer Special</span>
+            <h3 className="text-lg font-black text-slate-800 leading-tight mb-1">Cool & Refreshing Drinks</h3>
+            <p className="text-emerald-600 text-xs font-black uppercase tracking-wider mb-3">Up to 30% OFF</p>
+            <button className="bg-[#16A34A] hover:bg-emerald-700 text-white w-fit px-5 py-2 rounded-xl font-black uppercase tracking-widest text-[9px] flex items-center gap-1 active:scale-95 transition-all shadow-md shadow-green-900/10">
+              Shop Now <ArrowRight className="h-3 w-3" />
+            </button>
           </div>
-          <div className="absolute right-[-10%] top-0 bottom-0 w-1/2 flex items-center justify-center p-4">
-             <img 
+          <div className="absolute right-[-5%] top-0 bottom-0 w-1/2 flex items-center justify-center p-4 pointer-events-none">
+            <img 
               src="https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&q=80&w=600" 
               alt="" 
-              className="h-[120%] rotate-6 group-hover:rotate-0 transition-transform duration-700 object-contain filter drop-shadow-2xl" 
-             />
+              className="h-[110%] rotate-6 group-hover:rotate-3 transition-transform duration-700 object-contain filter drop-shadow-lg" 
+            />
           </div>
         </div>
       </div>
