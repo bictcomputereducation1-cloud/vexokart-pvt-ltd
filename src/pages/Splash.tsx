@@ -14,32 +14,19 @@ export default function Splash() {
     console.log("Database Profile:", profile);
     console.log("Database Role:", profile?.role || null);
 
-    // 1. Safe absolute fallback timer: if auth loading takes too long (> 3000ms), force a fallback to '/' or appropriate dashboard
+    // 1. Safe absolute fallback timer: if auth loading takes too long (> 5000ms), force a fallback to '/login'
     const absoluteFallback = setTimeout(() => {
-      console.warn("[Splash] Splash screen took too long to load. Triggering safe fallback...");
-      if (user && profile) {
-        let destination = "/";
-        if (profile.role === "admin") {
-          destination = "/admin";
-        } else if (profile.role === "vendor") {
-          destination = "/vendor";
-        } else if (profile.role === "delivery") {
-          destination = "/delivery";
-        }
-        console.log("Navigation:", destination);
-        navigate(destination, { replace: true });
-      } else if (!authLoading && !user) {
-        console.log("Navigation: /home");
-        navigate('/home', { replace: true });
-      }
-    }, 3000);
+      console.warn("[Splash] Splash screen took too long to load (5 seconds failsafe). Navigating to Login...");
+      console.log("Navigate Login");
+      navigate('/login', { replace: true });
+    }, 5000);
 
     // 2. Normal auth-complete route redirect
     let timer: any = null;
     if (!authLoading) {
       timer = setTimeout(() => {
         if (user && profile) {
-          let destination = "/";
+          let destination = "/home";
           if (profile.role === "admin") {
             destination = "/admin";
           } else if (profile.role === "vendor") {
@@ -47,10 +34,19 @@ export default function Splash() {
           } else if (profile.role === "delivery") {
             destination = "/delivery";
           }
-          console.log("Navigation:", destination);
+          
+          if (destination === "/home") {
+            console.log("Navigate Home");
+          } else {
+            console.log("Navigation:", destination);
+          }
           navigate(destination, { replace: true });
         } else if (!user) {
-          console.log("Navigation: /home");
+          console.log("Navigate Login");
+          navigate('/login', { replace: true });
+        } else {
+          // Logged in but no profile yet or loading profile failed
+          console.log("Navigate Home");
           navigate('/home', { replace: true });
         }
       }, 400);

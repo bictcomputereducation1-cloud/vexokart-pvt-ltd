@@ -50,14 +50,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const initRef = useRef(false);
-
   useEffect(() => {
     let active = true;
     let subscription: any = null;
-
-    if (initRef.current) return;
-    initRef.current = true;
 
     const initializeAuth = async () => {
       setLoading(true);
@@ -72,11 +67,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (!active) return;
 
         const session = data?.session;
+        console.log("Session Loaded");
+
         if (session?.user) {
           setUser(session.user);
           const dbProfile = await fetchProfileDirect(session.user.id);
           if (active) {
             setProfile(dbProfile);
+            console.log("Profile Loaded");
           }
         } else {
           setUser(null);
@@ -86,6 +84,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.error("[AuthContext] Exception caught during setupAuthAndProfile:", err);
       } finally {
         if (active) {
+          console.log("Loading False");
           setLoading(false);
         }
       }
@@ -109,6 +108,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               fetchProfileDirect(session.user.id).then((dbProfile) => {
                 if (active) {
                   setProfile(dbProfile);
+                  console.log("Profile Loaded");
+                  console.log("Loading False");
                   setLoading(false);
                 }
               });
@@ -118,11 +119,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             setUser(null);
             setProfile(null);
+            console.log("Loading False");
             setLoading(false);
           }
         } catch (err) {
           console.error("[AuthContext] Exception in onAuthStateChange:", err);
-          if (active) setLoading(false);
+          if (active) {
+            console.log("Loading False");
+            setLoading(false);
+          }
         }
       });
       subscription = sub;
