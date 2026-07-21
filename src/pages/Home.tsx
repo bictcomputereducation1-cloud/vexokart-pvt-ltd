@@ -455,59 +455,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen pb-32 bg-[#FAF9F6]">
-      {/* 📍 PREMIUM BLINKIT-STYLE ADDRESS HEADER */}
-      <div className="bg-white border-b border-slate-100 px-4 py-4 mb-4">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-start gap-3 flex-grow min-w-0">
-            <div className="bg-emerald-50 p-2.5 rounded-xl text-[#16A34A] mt-0.5 flex-shrink-0">
-              <MapPin className="h-5 w-5" />
-            </div>
-            
-            <div className="flex flex-col min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-black uppercase text-[#16A34A] tracking-wider">
-                  Deliver to
-                </span>
-                {selectedAddress && (
-                  <span className="bg-emerald-50 text-emerald-700 text-[9px] font-black uppercase px-2 py-0.5 rounded-md border border-emerald-100">
-                    {getAddressLabelAndText(selectedAddress.full_address).label}
-                  </span>
-                )}
-                {selectedAddress?.is_default && (
-                  <span className="bg-slate-100 text-slate-600 text-[8px] font-black uppercase px-1.5 py-0.5 rounded-md">
-                    Default
-                  </span>
-                )}
-              </div>
-              
-              <span className="text-sm font-black text-slate-800 leading-tight mt-0.5 truncate">
-                {selectedAddress ? getAddressLabelAndText(selectedAddress.full_address).text : (user ? 'Set delivery address' : 'Login to save addresses')}
-              </span>
-              <span className="text-[10px] font-bold text-slate-400 truncate mt-0.5">
-                {selectedAddress ? `${selectedAddress.city} - ${selectedAddress.pincode}` : 'No address selected'}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 flex-shrink-0">
-            {user ? (
-              <button 
-                onClick={() => setAddressModalOpen(true)}
-                className="text-[10px] font-black uppercase tracking-widest text-[#16A34A] bg-emerald-50 hover:bg-emerald-100 px-4 py-2.5 rounded-xl transition-all border border-emerald-100/50"
-              >
-                Change
-              </button>
-            ) : (
-              <button 
-                onClick={() => navigate('/login')}
-                className="text-[10px] font-black uppercase tracking-widest text-white bg-[#C49B3B] px-4 py-2.5 rounded-xl shadow-md transition-all"
-              >
-                Login
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
 
       {/* 🔹 ADDRESS MANAGEMENT MODAL */}
       <AnimatePresence>
